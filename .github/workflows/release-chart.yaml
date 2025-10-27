@@ -1,0 +1,56 @@
+name: Release Helm Chart
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config user.name "$GITHUB_ACTOR"
+          git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.14.0
+
+      - name: Package Helm Chart
+        run: |
+          helm package charts/kube-watcher -d docs/
+
+      - name: Update Helm Repository Index
+        run: |
+          helm repo index docs/ --url https://${{ github.repository_owner }}.github.io/kube-watcher/
+
+      - name: Commit and Push to gh-pages
+        run: |
+          git checkout gh-pages || git checkout --orphan gh-pages
+          git rm -rf . || true
+          git checkout main -- docs/
+          mv docs/* .
+          rm -rf docs/
+          git add .
+          git commit -m "Release Helm Chart ${{ github.ref_name }}" || exit 0
+          git push origin gh-pages
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            kube-watcher-*.tgz
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

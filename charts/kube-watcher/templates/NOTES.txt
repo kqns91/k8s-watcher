@@ -1,0 +1,44 @@
+🎉 kube-watcher がインストールされました！
+
+リリース名: {{ .Release.Name }}
+Namespace: {{ include "kube-watcher.namespace" . }}
+
+📊 デプロイメント状態の確認:
+
+  kubectl get deployment {{ include "kube-watcher.fullname" . }} -n {{ include "kube-watcher.namespace" . }}
+
+📝 ログの確認:
+
+  kubectl logs -f deployment/{{ include "kube-watcher.fullname" . }} -n {{ include "kube-watcher.namespace" . }}
+
+⚙️  設定情報:
+
+  監視対象Namespace: {{ include "kube-watcher.namespace" . }}
+  監視リソース数: {{ len .Values.config.resources }}
+  フィルター数: {{ len .Values.config.filters }}
+
+{{- if not .Values.slack.webhookUrl }}
+{{- if not .Values.slack.existingSecret }}
+
+⚠️  注意: Slack Webhook URLが設定されていません
+
+以下のいずれかの方法で設定してください:
+
+1. values.yamlで直接指定:
+   helm upgrade {{ .Release.Name }} kube-watcher/kube-watcher \
+     --set slack.webhookUrl="https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
+
+2. 既存のSecretを使用:
+   helm upgrade {{ .Release.Name }} kube-watcher/kube-watcher \
+     --set slack.existingSecret="your-secret-name" \
+     --set slack.existingSecretKey="webhook-url"
+
+{{- end }}
+{{- end }}
+
+📚 詳細情報:
+  Chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+  App Version: {{ .Chart.AppVersion }}
+  リポジトリ: {{ .Chart.Home }}
+
+監視を開始しています... 🚀

@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "kube-watcher.fullname" . }}-config
+  namespace: {{ include "kube-watcher.namespace" . }}
+  labels:
+    {{- include "kube-watcher.labels" . | nindent 4 }}
+data:
+  config.yaml: |
+    namespace: {{ include "kube-watcher.namespace" . | quote }}
+
+    resources:
+    {{- range .Values.config.resources }}
+      - kind: {{ .kind }}
+    {{- end }}
+
+    filters:
+    {{- range .Values.config.filters }}
+      - resource: {{ .resource }}
+        eventTypes:
+        {{- range .eventTypes }}
+          - {{ . }}
+        {{- end }}
+        {{- if .labels }}
+        labels:
+          {{- toYaml .labels | nindent 10 }}
+        {{- end }}
+    {{- end }}
+
+    notifier:
+      slack:
+        webhookUrl: {{ include "kube-watcher.slackWebhookUrl" . | quote }}
+        template: {{ .Values.config.messageTemplate | quote }}

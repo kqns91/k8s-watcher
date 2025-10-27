@@ -60,6 +60,61 @@ BotKubeやRobustaなどの既存ツールは**ClusterRole**（クラスタ全体
 
 ## クイックスタート
 
+kube-watcherは、以下の3つの方法でデプロイできます：
+
+### 📦 方法1: Helm（推奨）
+
+最も簡単で柔軟な方法です。
+
+```bash
+# Helmリポジトリの追加
+helm repo add kube-watcher https://yourusername.github.io/kube-watcher/
+helm repo update
+
+# インストール
+helm install kube-watcher kube-watcher/kube-watcher \
+  --set slack.webhookUrl="https://hooks.slack.com/services/YOUR/WEBHOOK/URL" \
+  --set namespace="monitoring" \
+  --namespace monitoring \
+  --create-namespace
+```
+
+詳細は [Helm Chartドキュメント](charts/kube-watcher/README.md) をご覧ください。
+
+### 📝 方法2: Helmfile（宣言的管理）
+
+helmfileで宣言的に管理する場合：
+
+```yaml
+# helmfile.yaml
+repositories:
+  - name: kube-watcher
+    url: https://yourusername.github.io/kube-watcher/
+
+releases:
+  - name: kube-watcher
+    namespace: monitoring
+    chart: kube-watcher/kube-watcher
+    version: ~0.1.0
+    values:
+      - namespace: monitoring
+        slack:
+          webhookUrl: "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
+        config:
+          resources:
+            - kind: Pod
+            - kind: Deployment
+          filters:
+            - resource: Pod
+              eventTypes: [DELETED]
+```
+
+```bash
+helmfile apply
+```
+
+### ⚙️ 方法3: kubectl（マニフェスト直接適用）
+
 ### 前提条件
 
 - Kubernetesクラスタ（v1.20以降）
@@ -278,9 +333,9 @@ rules:
 ## ロードマップ
 
 ### Phase 2（計画中）
+- [x] **Helmチャート対応** ✅
 - [ ] 重複イベント抑止（LRUキャッシュ）
 - [ ] ConfigMapのホットリロード
-- [ ] Helmチャート対応
 - [ ] 追加の通知先対応（Teams、Discord、汎用Webhook）
 
 ### Phase 3（将来）
