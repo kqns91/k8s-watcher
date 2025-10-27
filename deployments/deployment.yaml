@@ -1,0 +1,46 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kube-watcher
+  namespace: default  # Change this to your target namespace
+  labels:
+    app: kube-watcher
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kube-watcher
+  template:
+    metadata:
+      labels:
+        app: kube-watcher
+    spec:
+      serviceAccountName: kube-watcher
+      containers:
+        - name: kube-watcher
+          image: kube-watcher:latest  # Replace with your image
+          imagePullPolicy: IfNotPresent
+          args:
+            - "-config=/etc/kube-watcher/config.yaml"
+          env:
+            - name: SLACK_WEBHOOK_URL
+              valueFrom:
+                secretKeyRef:
+                  name: kube-watcher-secret
+                  key: slack-webhook-url
+          volumeMounts:
+            - name: config
+              mountPath: /etc/kube-watcher
+              readOnly: true
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+      volumes:
+        - name: config
+          configMap:
+            name: kube-watcher-config
