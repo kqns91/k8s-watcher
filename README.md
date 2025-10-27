@@ -1,20 +1,25 @@
 # kube-watcher
 
-A lightweight Kubernetes resource monitoring bot with namespace-scoped permissions that sends notifications to Slack.
+Namespace限定権限で動作する、軽量なKubernetesリソース監視Bot
 
-## Overview
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Go Version](https://img.shields.io/badge/Go-1.21+-blue.svg)](https://golang.org/)
 
-`kube-watcher` monitors Kubernetes resources within a single namespace and sends notifications to Slack when resources are created, updated, or deleted. Unlike tools like BotKube or Robusta that require cluster-wide permissions (ClusterRole), `kube-watcher` operates with minimal namespace-scoped permissions (Role), making it suitable for environments with strict RBAC policies.
+## 概要
 
-## Features
+`kube-watcher`は、Kubernetesクラスタ内の特定のNamespace内でリソースの変更を監視し、Slackへ通知を送信する軽量な監視Botです。
 
-- **Namespace-scoped**: Uses only Role-based permissions (no ClusterRole required)
-- **Flexible resource monitoring**: Watch Pods, Deployments, Services, ConfigMaps, Secrets, and more
-- **Configurable filters**: Filter events by type (ADDED/UPDATED/DELETED) and resource labels
-- **Customizable notifications**: Use Go templates to format Slack messages
-- **Lightweight**: Minimal resource footprint
+BotKubeやRobustaなどの既存ツールは**ClusterRole**（クラスタ全体への権限）が必要ですが、`kube-watcher`は**Namespace限定のRole**のみで動作するため、厳格なRBACポリシーが適用されている環境でも安全にご利用いただけます。
 
-## Architecture
+## 主な特徴
+
+- **🔒 セキュア**: ClusterRole不要、Namespace限定のRole権限のみで動作
+- **🔍 柔軟な監視**: Pod、Deployment、Serviceなど複数のリソースタイプに対応
+- **⚙️ 設定可能なフィルター**: イベントタイプ（作成/更新/削除）やラベルによるフィルタリング
+- **✨ カスタマイズ可能**: Goテンプレートを使用したSlackメッセージのカスタマイズ
+- **🪶 軽量**: 最小限のリソースフットプリント、シンプルな依存関係
+
+## アーキテクチャ
 
 ```
 ┌─────────────┐
@@ -25,25 +30,25 @@ A lightweight Kubernetes resource monitoring bot with namespace-scoped permissio
        │ (informer/watch)
        │
 ┌──────▼──────┐
-│   Watcher   │
+│   Watcher   │  リソース変更の検知
 └──────┬──────┘
        │
        │ (events)
        │
 ┌──────▼──────┐
-│   Filter    │
+│   Filter    │  設定に基づくフィルタリング
 └──────┬──────┘
        │
        │ (filtered events)
        │
 ┌──────▼──────┐
-│  Formatter  │
+│  Formatter  │  メッセージの整形
 └──────┬──────┘
        │
        │ (formatted message)
        │
 ┌──────▼──────┐
-│  Notifier   │
+│  Notifier   │  通知の送信
 └──────┬──────┘
        │
        │ (webhook)
@@ -53,79 +58,81 @@ A lightweight Kubernetes resource monitoring bot with namespace-scoped permissio
 └─────────────┘
 ```
 
-## Quick Start
+## クイックスタート
 
-### Prerequisites
+### 前提条件
 
-- Kubernetes cluster (v1.20+)
-- kubectl configured
-- Slack webhook URL ([Create one here](https://api.slack.com/messaging/webhooks))
+- Kubernetesクラスタ（v1.20以降）
+- kubectlの設定済み環境
+- Slack Webhook URL（[こちら](https://api.slack.com/messaging/webhooks)から取得可能）
 
-### 1. Clone the repository
+### 1. リポジトリのクローン
 
 ```bash
 git clone https://github.com/yourusername/kube-watcher.git
 cd kube-watcher
 ```
 
-### 2. Configure Slack webhook
+### 2. Slack Webhookの設定
 
-Edit `deployments/secret.yaml` and replace with your Slack webhook URL:
+`deployments/secret.yaml`を編集し、Slack Webhook URLを設定します。
 
 ```yaml
 stringData:
   slack-webhook-url: "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
 ```
 
-### 3. Customize configuration (optional)
+### 3. 設定のカスタマイズ（任意）
 
-Edit `deployments/configmap.yaml` to configure:
-- Which resources to watch
-- Event type filters
-- Label filters
-- Message template
+`deployments/configmap.yaml`を編集して、以下の項目を設定できます。
 
-### 4. Deploy to Kubernetes
+- 監視対象のリソース
+- イベントタイプのフィルター
+- ラベルによるフィルター
+- メッセージテンプレート
+
+### 4. Kubernetesへのデプロイ
 
 ```bash
-# Update namespace in all manifests if needed (default is "default")
+# 必要に応じてNamespaceを変更（デフォルトは "default"）
 # sed -i 's/namespace: default/namespace: your-namespace/g' deployments/*.yaml
 
-# Apply RBAC
+# RBACの適用
 kubectl apply -f deployments/rbac.yaml
 
-# Apply Secret
+# Secretの適用
 kubectl apply -f deployments/secret.yaml
 
-# Apply ConfigMap
+# ConfigMapの適用
 kubectl apply -f deployments/configmap.yaml
 
-# Build and push Docker image
+# Dockerイメージのビルドとプッシュ
 docker build -t your-registry/kube-watcher:latest .
 docker push your-registry/kube-watcher:latest
 
-# Update deployment.yaml with your image
+# deployment.yamlのイメージを更新
 # sed -i 's|image: kube-watcher:latest|image: your-registry/kube-watcher:latest|' deployments/deployment.yaml
 
-# Deploy application
+# アプリケーションのデプロイ
 kubectl apply -f deployments/deployment.yaml
 ```
 
-### 5. Verify deployment
+### 5. デプロイの確認
 
 ```bash
-# Check if pod is running
+# Podの稼働状況を確認
 kubectl get pods -l app=kube-watcher
 
-# Check logs
+# ログの確認
 kubectl logs -l app=kube-watcher -f
 ```
 
-## Configuration
+## 設定方法
 
-### Watched Resources
+### 監視可能なリソース
 
-Supported resource kinds:
+以下のKubernetesリソースの監視に対応しています。
+
 - `Pod`
 - `Deployment`
 - `Service`
@@ -135,13 +142,13 @@ Supported resource kinds:
 - `StatefulSet`
 - `DaemonSet`
 
-### Event Types
+### イベントタイプ
 
-- `ADDED`: Resource was created
-- `UPDATED`: Resource was modified
-- `DELETED`: Resource was removed
+- `ADDED`: リソースが作成された
+- `UPDATED`: リソースが更新された
+- `DELETED`: リソースが削除された
 
-### Example Configuration
+### 設定例
 
 ```yaml
 namespace: "production"
@@ -151,13 +158,13 @@ resources:
   - kind: Deployment
 
 filters:
-  # Only notify for Pod deletions with specific label
+  # 特定のラベルを持つPodの削除のみ通知
   - resource: Pod
     eventTypes: ["DELETED"]
     labels:
       environment: "production"
 
-  # Notify for all Deployment changes
+  # Deploymentのすべての変更を通知
   - resource: Deployment
     eventTypes: ["ADDED", "UPDATED", "DELETED"]
 
@@ -166,80 +173,94 @@ notifier:
     webhookUrl: "${SLACK_WEBHOOK_URL}"
     template: |
       :warning: *[{{ .Kind }}]* `{{ .Namespace }}/{{ .Name }}`
-      Action: *{{ .EventType }}*
-      Time: {{ .Timestamp }}
+      アクション: *{{ .EventType }}*
+      時刻: {{ .Timestamp }}
       {{- if .Labels }}
-      Labels: {{ range $k, $v := .Labels }}{{ $k }}={{ $v }} {{ end }}
+      ラベル: {{ range $k, $v := .Labels }}{{ $k }}={{ $v }} {{ end }}
       {{- end }}
 ```
 
-### Template Variables
+### テンプレート変数
 
-Available in the `template` field:
+`template`フィールドで利用可能な変数は以下の通りです。
 
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `.Kind` | Resource kind | `Pod`, `Deployment` |
-| `.Namespace` | Resource namespace | `default`, `production` |
-| `.Name` | Resource name | `my-app-123` |
-| `.EventType` | Event type | `ADDED`, `UPDATED`, `DELETED` |
-| `.Timestamp` | Event timestamp | `2025-10-28T12:34:56Z` |
-| `.Labels` | Resource labels | `map[app:web env:prod]` |
+| 変数 | 説明 | 例 |
+|------|------|-----|
+| `.Kind` | リソースの種類 | `Pod`, `Deployment` |
+| `.Namespace` | Namespace名 | `default`, `production` |
+| `.Name` | リソース名 | `my-app-123` |
+| `.EventType` | イベントタイプ | `ADDED`, `UPDATED`, `DELETED` |
+| `.Timestamp` | イベント発生時刻 | `2025-10-28T12:34:56Z` |
+| `.Labels` | リソースのラベル | `map[app:web env:prod]` |
 
-## Development
+## 開発
 
-### Local Development
+### ローカル開発環境
 
 ```bash
-# Install dependencies
+# 依存関係のインストール
 go mod download
 
-# Run locally (requires kubeconfig)
+# ローカルでの実行（kubeconfigが必要）
 go run cmd/main.go -config config/config.yaml
 ```
 
-### Build
+### ビルド
 
 ```bash
-# Build binary
+# バイナリのビルド
 go build -o kube-watcher ./cmd
 
-# Build Docker image
+# Dockerイメージのビルド
 docker build -t kube-watcher:latest .
 ```
 
-### Project Structure
+### Makefileの利用
+
+プロジェクトにはMakefileが含まれており、以下のコマンドが利用できます。
+
+```bash
+make build          # バイナリのビルド
+make run            # ローカルでの実行
+make docker-build   # Dockerイメージのビルド
+make deploy         # Kubernetesへのデプロイ
+make logs           # ログの表示
+make undeploy       # Kubernetesからのアンデプロイ
+```
+
+### プロジェクト構成
 
 ```
 .
 ├── cmd/
-│   └── main.go                 # Application entry point
+│   └── main.go                 # アプリケーションのエントリーポイント
 ├── pkg/
-│   ├── config/                 # Configuration management
+│   ├── config/                 # 設定管理
 │   │   └── config.go
-│   ├── watcher/                # Kubernetes resource watching
+│   ├── watcher/                # Kubernetesリソース監視
 │   │   └── watcher.go
-│   ├── filter/                 # Event filtering logic
+│   ├── filter/                 # イベントフィルタリング
 │   │   └── filter.go
-│   ├── formatter/              # Message formatting
+│   ├── formatter/              # メッセージ整形
 │   │   └── formatter.go
-│   └── notifier/               # Notification delivery
+│   └── notifier/               # 通知送信
 │       └── notifier.go
 ├── config/
-│   └── config.yaml             # Example configuration
+│   └── config.yaml             # 設定ファイルのサンプル
 ├── deployments/
-│   ├── rbac.yaml               # RBAC manifests
-│   ├── secret.yaml             # Secret for webhook URL
-│   ├── configmap.yaml          # ConfigMap for config
-│   └── deployment.yaml         # Deployment manifest
+│   ├── rbac.yaml               # RBACマニフェスト
+│   ├── secret.yaml             # Webhook URL用Secret
+│   ├── configmap.yaml          # 設定用ConfigMap
+│   └── deployment.yaml         # Deploymentマニフェスト
 ├── Dockerfile
+├── Makefile
 ├── go.mod
 └── README.md
 ```
 
-## RBAC Permissions
+## RBAC権限
 
-The application requires only namespace-scoped permissions:
+本アプリケーションは**Namespace限定の権限**のみを必要とします。
 
 ```yaml
 rules:
@@ -252,67 +273,94 @@ rules:
     verbs: ["list", "watch", "get"]
 ```
 
-**No ClusterRole required!** This makes it safe to use in multi-tenant environments.
+**ClusterRoleは不要です！** そのため、マルチテナント環境でも安全にご利用いただけます。
 
-## Roadmap
+## ロードマップ
 
-### Phase 2 (Planned)
-- [ ] Duplicate event suppression (LRU cache)
-- [ ] ConfigMap hot-reload
-- [ ] Helm chart
-- [ ] Additional notifiers (Teams, Discord, generic webhooks)
+### Phase 2（計画中）
+- [ ] 重複イベント抑止（LRUキャッシュ）
+- [ ] ConfigMapのホットリロード
+- [ ] Helmチャート対応
+- [ ] 追加の通知先対応（Teams、Discord、汎用Webhook）
 
-### Phase 3 (Future)
-- [ ] Event batching
-- [ ] Per-resource message templates
-- [ ] Filter DSL for complex rules
-- [ ] Metrics endpoint (Prometheus)
+### Phase 3（将来）
+- [ ] イベントのバッチ処理
+- [ ] リソースタイプごとのテンプレート
+- [ ] 複雑なルール記述のためのフィルターDSL
+- [ ] メトリクスエンドポイント（Prometheus対応）
 
-## Troubleshooting
+## トラブルシューティング
 
-### Pod not starting
+### Podが起動しない場合
 
 ```bash
-# Check RBAC
+# RBACの確認
 kubectl get role,rolebinding -n your-namespace
 
-# Check logs
+# ログの確認
 kubectl logs -l app=kube-watcher -n your-namespace
 ```
 
-### Not receiving notifications
+### 通知が届かない場合
 
-1. Verify Slack webhook URL in secret
-2. Check application logs for errors
-3. Test webhook manually:
+1. Secretに設定されたSlack Webhook URLが正しいか確認してください
+2. アプリケーションのログでエラーが発生していないか確認してください
+3. Webhookを手動でテストしてください
+
    ```bash
    curl -X POST -H 'Content-type: application/json' \
-     --data '{"text":"Test message"}' \
+     --data '{"text":"テストメッセージ"}' \
      YOUR_WEBHOOK_URL
    ```
 
-### Events not being detected
+### イベントが検知されない場合
 
-1. Verify resources are in the watched namespace
-2. Check filter configuration
-3. Review resource permissions in RBAC
+1. リソースが監視対象のNamespace内に存在することを確認してください
+2. フィルター設定を確認してください
+3. RBACのリソース権限を確認してください
 
-## Contributing
+## コントリビューション
 
-Contributions are welcome! Please:
+プルリクエストを歓迎いたします！以下の手順でご協力ください。
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Submit a pull request
+1. このリポジトリをForkしてください
+2. フィーチャーブランチを作成してください（`git checkout -b feature/amazing-feature`）
+3. 変更をコミットしてください（`git commit -m 'Add some amazing feature'`）
+4. ブランチにPushしてください（`git push origin feature/amazing-feature`）
+5. プルリクエストを作成してください
 
-## License
+### 開発ガイドライン
 
-MIT License - see LICENSE file for details
+- コードは`go fmt`でフォーマットしてください
+- 新機能には適切なコメントを追加してください
+- 可能な限りテストを追加してください
 
-## References
+## ライセンス
 
-- [Kubernetes client-go](https://github.com/kubernetes/client-go)
-- [Slack Incoming Webhooks](https://api.slack.com/messaging/webhooks)
-- [BotKube](https://github.com/kubeshop/botkube) (inspiration)
-- [Robusta](https://github.com/robusta-dev/robusta) (inspiration)
+本プロジェクトはMITライセンスの下で公開されています。詳細は[LICENSE](LICENSE)ファイルをご覧ください。
+
+## 参考資料
+
+- [Kubernetes client-go](https://github.com/kubernetes/client-go) - 公式Kubernetes Goクライアント
+- [Slack Incoming Webhooks](https://api.slack.com/messaging/webhooks) - Slack Webhook API
+- [BotKube](https://github.com/kubeshop/botkube) - インスピレーション元
+- [Robusta](https://github.com/robusta-dev/robusta) - インスピレーション元
+
+## 設計思想
+
+本プロジェクトは以下の原則に基づいて設計されています。
+
+| 原則 | 内容 |
+|------|------|
+| セキュア | ClusterRole禁止・Namespace限定アクセスのみ |
+| シンプル | 外部依存を最小化・Go標準ライブラリ中心 |
+| 拡張性 | watcher/filter/formatter/notifierをinterface分離 |
+| 管理容易 | Helm/ConfigMapで構成を完全外部化 |
+
+## サポート
+
+問題が発生した場合や機能のリクエストがある場合は、[GitHub Issues](https://github.com/yourusername/kube-watcher/issues)にてお気軽にお問い合わせください。
+
+---
+
+**kube-watcher**をご利用いただき、ありがとうございます。
