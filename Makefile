@@ -1,4 +1,4 @@
-.PHONY: build run test docker-build docker-push deploy clean
+.PHONY: build run test docker-build docker-push deploy clean lint lint-fix
 
 # Variables
 BINARY_NAME=kube-watcher
@@ -55,7 +55,13 @@ fmt:
 
 # Lint code
 lint:
+	@which golangci-lint > /dev/null || (echo "golangci-lint not installed. Run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest" && exit 1)
 	golangci-lint run
+
+# Lint and fix code
+lint-fix:
+	@which golangci-lint > /dev/null || (echo "golangci-lint not installed. Run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest" && exit 1)
+	golangci-lint run --fix
 
 # Show logs
 logs:

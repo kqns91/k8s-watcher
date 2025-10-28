@@ -1,0 +1,123 @@
+# golangci-lint configuration
+# https://golangci-lint.run/usage/configuration/
+
+version: 2
+
+run:
+  # タイムアウト設定
+  timeout: 5m
+
+  # テスト対象のディレクトリ
+  tests: true
+
+  # ビルドタグ
+  build-tags: []
+
+  # スキップするディレクトリ（デフォルト）
+  skip-dirs:
+    - vendor
+
+  # モジュールダウンロードモード
+  modules-download-mode: readonly
+
+# 出力設定
+output:
+  # 出力形式: colored-line-number, line-number, json, tab, checkstyle, code-climate
+  format: colored-line-number
+
+  # 結果の出力先
+  print-issued-lines: true
+  print-linter-name: true
+  uniq-by-line: true
+  sort-results: true
+
+# Linter設定
+linters:
+  # 自動的に有効化されないlinterを無効にする
+  disable-all: true
+
+  # 有効にするlinter
+  enable:
+    # デフォルトで推奨されるlinter
+    - errcheck      # エラーチェック漏れを検出
+    - govet         # go vetの問題を検出
+    - ineffassign   # 無効な代入を検出
+    - staticcheck   # 静的解析
+    - unused        # 未使用のコードを検出
+
+    # 追加の有用なlinter
+    - misspell      # スペルミスを検出
+    - revive        # golintの後継
+    - gosec         # セキュリティ問題を検出
+
+linters-settings:
+  # errcheck設定
+  errcheck:
+    # エラーチェックを除外する関数
+    exclude-functions:
+      - (io.Closer).Close
+      - (*os.File).Close
+
+  # revive設定
+  revive:
+    confidence: 0.8
+    rules:
+      - name: blank-imports
+      - name: context-as-argument
+      - name: context-keys-type
+      - name: dot-imports
+      - name: error-return
+      - name: error-strings
+      - name: error-naming
+      - name: exported
+      - name: if-return
+      - name: increment-decrement
+      - name: var-naming
+      - name: var-declaration
+      - name: package-comments
+      - name: range
+      - name: receiver-naming
+      - name: time-naming
+      - name: unexported-return
+      - name: indent-error-flow
+      - name: errorf
+      - name: empty-block
+      - name: superfluous-else
+      - name: unused-parameter
+      - name: unreachable-code
+      - name: redefines-builtin-id
+
+  # gosec設定
+  gosec:
+    # 除外するルール
+    excludes:
+      - G404 # 暗号学的に安全でない乱数生成（必要に応じて）
+
+# Issue設定
+issues:
+  # 新しいコードのみチェック（既存コードは除外）
+  new: false
+
+  # 最大表示issue数（0=無制限）
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
+  # 除外するパターン
+  exclude-rules:
+    # テストファイルでは一部のlinterを無効化
+    - path: _test\.go
+      linters:
+        - errcheck
+        - gosec
+
+    # 生成されたファイルを除外
+    - path: ".*\\.pb\\.go"
+      linters:
+        - all
+
+  # デフォルトの除外ルールを使用
+  exclude-use-default: true
+
+# 厳密性の設定
+severity:
+  default-severity: error

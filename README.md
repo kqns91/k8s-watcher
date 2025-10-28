@@ -277,10 +277,29 @@ docker build -t kube-watcher:latest .
 ```bash
 make build          # バイナリのビルド
 make run            # ローカルでの実行
+make test           # テストの実行
+make lint           # コードのLint
+make lint-fix       # Lintエラーの自動修正
+make fmt            # コードフォーマット
 make docker-build   # Dockerイメージのビルド
 make deploy         # Kubernetesへのデプロイ
 make logs           # ログの表示
 make undeploy       # Kubernetesからのアンデプロイ
+```
+
+### コード品質
+
+プロジェクトでは[golangci-lint](https://golangci-lint.run/)を使用してコード品質を維持しています。
+
+```bash
+# golangci-lintのインストール
+go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+
+# Lintの実行
+make lint
+
+# Lintエラーの自動修正
+make lint-fix
 ```
 
 ### プロジェクト構成
@@ -387,8 +406,10 @@ kubectl logs -l app=kube-watcher -n your-namespace
 ### 開発ガイドライン
 
 - コードは`go fmt`でフォーマットしてください
+- `make lint`でLintチェックを行い、エラーがないことを確認してください
 - 新機能には適切なコメントを追加してください
 - 可能な限りテストを追加してください
+- コミット前に必ず`make lint`と`make test`を実行してください
 
 ## ライセンス
 
