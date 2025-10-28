@@ -24,6 +24,10 @@ BotKubeやRobustaなどの既存ツールは**ClusterRole**（クラスタ全体
 - **📦 イベントバッチ処理** (v0.4.0): 複数のイベントをまとめて通知し、通知頻度を最適化
   - 3つのモード（detailed/summary/smart）で柔軟な表示制御
   - スマートモードで重要イベント（削除など）は常に詳細表示
+- **🔍 CEL式フィルターDSL** (v0.5.0): 複雑なフィルタリング条件を柔軟に記述
+  - Google CEL（Common Expression Language）による高度なフィルタリング
+  - イベント理由、ラベル、レプリカ数など多様な条件に対応
+  - Deploymentの重複通知問題を解決
 - **🎨 リッチな通知**: Slack Attachmentsによる色分けと詳細情報の表示
   - イベントタイプに応じた色分け（追加=緑、更新=黄、削除=赤）
   - コンテナイメージとタグ情報
@@ -139,7 +143,7 @@ releases:
   - name: kube-watcher
     namespace: monitoring
     chart: kube-watcher/kube-watcher
-    version: ~0.4.0
+    version: ~0.5.0
     values:
       - namespace: monitoring
         slack:
@@ -151,6 +155,10 @@ releases:
           filters:
             - resource: Pod
               eventTypes: [DELETED]
+            - resource: Deployment
+              # CEL式によるフィルタリング（v0.5.0以降）
+              # ReplicaSetUpdatedとNewReplicaSetAvailableを除外
+              expression: 'event.eventType == "UPDATED" && event.reason != "ReplicaSetUpdated" && event.reason != "NewReplicaSetAvailable"'
           # 重複排除設定（オプション）
           deduplication:
             enabled: true
@@ -306,6 +314,20 @@ filters:
   - resource: Deployment
     eventTypes: ["ADDED", "UPDATED", "DELETED"]
 
+  # CEL式による高度なフィルタリング（v0.5.0以降）
+  # expressionが設定されている場合、eventTypesとlabelsよりも優先されます
+  - resource: Deployment
+    # ReplicaSetUpdatedとNewReplicaSetAvailableを除外
+    expression: 'event.eventType == "UPDATED" && event.reason != "ReplicaSetUpdated" && event.reason != "NewReplicaSetAvailable"'
+
+  - resource: Pod
+    # 本番環境のPodで削除またはapp=webのラベルを持つもの
+    expression: 'event.eventType == "DELETED" || event.labels.app == "web"'
+
+  - resource: Deployment
+    # レプリカ数が3を超える場合のみ通知
+    expression: 'has(event.replicas) && event.replicas.desired > 3'
+
 notifier:
   slack:
     webhookUrl: "${SLACK_WEBHOOK_URL}"
@@ -362,6 +384,52 @@ batching:
 | `.ServiceType` | サービスタイプ | Service |
 
 **注意**: v0.1.4 以降、デフォルトでは Slack Attachments 形式で通知が送信されるため、これらの詳細情報は自動的に整形されて表示されます。カスタムテンプレートを使用する場合のみ、これらの変数を明示的に参照する必要があります。
+
+### CEL式フィルター（v0.5.0以降）
+
+フィルターに`expression`フィールドを指定することで、CEL（Common Expression Language）による高度なフィルタリングが可能です。
+
+#### 利用可能なCELフィールド
+
+| フィールド | 説明 | 例 |
+|-----------|------|-----|
+| `event.kind` | リソース種類 | `"Pod"`, `"Deployment"` |
+| `event.namespace` | Namespace名 | `"default"`, `"production"` |
+| `event.name` | リソース名 | `"my-app-123"` |
+| `event.eventType` | イベントタイプ | `"ADDED"`, `"UPDATED"`, `"DELETED"` |
+| `event.reason` | イベント理由 | `"ReplicaSetUpdated"`, `"ScalingReplicaSet"` |
+| `event.message` | イベントメッセージ | 文字列 |
+| `event.status` | リソースステータス | `"Running"`, `"Pending"` |
+| `event.labels` | ラベル（map） | `event.labels.app == "web"` |
+| `event.replicas` | レプリカ情報（構造体） | `event.replicas.desired > 3` |
+| `event.containers` | コンテナ情報（配列） | - |
+| `event.serviceType` | サービスタイプ | `"ClusterIP"`, `"LoadBalancer"` |
+
+#### CEL式の例
+
+```yaml
+# Deploymentの重複通知を除外（最も一般的な使い方）
+- resource: Deployment
+  expression: 'event.eventType == "UPDATED" && event.reason != "ReplicaSetUpdated" && event.reason != "NewReplicaSetAvailable"'
+
+# 複数のイベントタイプ（IN演算子）
+- resource: Pod
+  expression: 'event.eventType in ["ADDED", "DELETED"]'
+
+# ラベルと条件の組み合わせ
+- resource: Pod
+  expression: 'event.namespace == "prod" && event.labels.app == "web" && event.eventType == "DELETED"'
+
+# レプリカ数の条件
+- resource: Deployment
+  expression: 'has(event.replicas) && event.replicas.desired > 3'
+
+# 複雑なOR条件
+- resource: Pod
+  expression: 'event.eventType == "DELETED" || (event.eventType == "UPDATED" && event.status != "Running")'
+```
+
+**注意**: `expression` が設定されている場合、`eventTypes` と `labels` フィールドは無視され、CEL式の評価結果のみが使用されます。
 
 ## 開発
 
@@ -429,7 +497,9 @@ make lint-fix
 │   ├── watcher/                # Kubernetesリソース監視
 │   │   └── watcher.go
 │   ├── filter/                 # イベントフィルタリング
-│   │   └── filter.go
+│   │   ├── filter.go
+│   │   ├── cel.go              # CEL式評価エンジン
+│   │   └── cel_test.go
 │   ├── dedup/                  # 重複イベント抑止
 │   │   ├── dedup.go
 │   │   └── dedup_test.go
@@ -486,15 +556,15 @@ rules:
 - [x] **イベントタイプ別の色分け** - ADDED/UPDATED/DELETED の視覚的区別
 - [x] **変更差分フィルタリング** (v0.1.5) - 意味のある変更のみを通知
 
-### Step 3（一部完了）🚧
+### Step 3（完了）✅
 - [x] **重複イベント抑止（LRUキャッシュ）** (v0.2.0) - 同一イベントの重複通知を防止
 - [x] **ConfigMapのホットリロード** (v0.3.0) - Pod再起動なしで設定を自動反映
 - [x] **イベント集約とバッチ処理** (v0.4.0) - 複数イベントをまとめて通知、3つのモード対応
-- [ ] 追加の通知先対応（Teams、Discord、汎用Webhook）
+- [x] **複雑なルール記述のためのフィルターDSL** (v0.5.0) - CEL式による高度なフィルタリング
 
 ### Step 4（将来）
+- [ ] 追加の通知先対応（Teams、Discord、汎用Webhook）
 - [ ] リソースタイプごとのカスタムテンプレート
-- [ ] 複雑なルール記述のためのフィルターDSL
 - [ ] メトリクスエンドポイント（Prometheus対応）
 - [ ] Web UIダッシュボード
 
@@ -554,7 +624,17 @@ kube-watcher には複数の通知削減機能があります：
      mode: smart
    ```
 
-4. **イベントタイプフィルター**
+4. **CEL式フィルター** (v0.5.0以降、推奨)
+   - イベント理由やその他の条件で柔軟にフィルタリング
+   - Deploymentの重複通知問題を解決
+   ```yaml
+   filters:
+     - resource: Deployment
+       # ReplicaSetUpdatedとNewReplicaSetAvailableを除外
+       expression: 'event.eventType == "UPDATED" && event.reason != "ReplicaSetUpdated" && event.reason != "NewReplicaSetAvailable"'
+   ```
+
+5. **イベントタイプフィルター**
    - UPDATED イベントを除外することで通知を大幅削減
    ```yaml
    filters:

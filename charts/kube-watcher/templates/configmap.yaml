@@ -17,13 +17,18 @@ data:
     filters:
     {{- range .Values.config.filters }}
       - resource: {{ .resource }}
+        {{- if .eventTypes }}
         eventTypes:
         {{- range .eventTypes }}
           - {{ . }}
         {{- end }}
+        {{- end }}
         {{- if .labels }}
         labels:
           {{- toYaml .labels | nindent 10 }}
+        {{- end }}
+        {{- if .expression }}
+        expression: {{ .expression | quote }}
         {{- end }}
     {{- end }}
 
