@@ -15,10 +15,14 @@ import (
 // BatchMode represents the batching mode
 type BatchMode string
 
+// Batch mode constants
 const (
+	// BatchModeDetailed shows all events with details
 	BatchModeDetailed BatchMode = "detailed"
-	BatchModeSummary  BatchMode = "summary"
-	BatchModeSmart    BatchMode = "smart"
+	// BatchModeSummary shows only summary counts
+	BatchModeSummary BatchMode = "summary"
+	// BatchModeSmart uses smart grouping based on config
+	BatchModeSmart BatchMode = "smart"
 )
 
 // EventBatch represents a batch of events with timing info
