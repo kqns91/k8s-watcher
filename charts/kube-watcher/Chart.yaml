@@ -1,5 +1,5 @@
 apiVersion: v2
-name: k8s-watcher
+name: kube-watcher
 description: Namespace限定権限で動作する軽量なKubernetesリソース監視Bot
 type: application
 version: 0.1.2
