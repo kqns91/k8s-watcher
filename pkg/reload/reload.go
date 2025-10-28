@@ -33,7 +33,7 @@ func NewConfigWatcher(configPath string) (*ConfigWatcher, error) {
 	// This is necessary for Kubernetes ConfigMap updates
 	configDir := filepath.Dir(configPath)
 	if err := watcher.Add(configDir); err != nil {
-		watcher.Close()
+		_ = watcher.Close()
 		return nil, err
 	}
 
@@ -63,7 +63,7 @@ func (cw *ConfigWatcher) Start() {
 // Stop stops watching for configuration changes
 func (cw *ConfigWatcher) Stop() {
 	close(cw.stopCh)
-	cw.watcher.Close()
+	_ = cw.watcher.Close()
 }
 
 // watchLoop watches for file system events

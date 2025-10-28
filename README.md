@@ -21,6 +21,9 @@ BotKubeやRobustaなどの既存ツールは**ClusterRole**（クラスタ全体
   - **変更差分フィルタリング** (v0.1.5): 意味のある変更のみを通知（レプリカ数、イメージ、ステータス変化など）
   - **重複イベント抑止** (v0.2.0): LRUキャッシュによる同一イベントの重複通知防止
 - **🔄 ホットリロード** (v0.3.0): ConfigMapの変更を自動検知してPod再起動不要で設定反映
+- **📦 イベントバッチ処理** (v0.4.0): 複数のイベントをまとめて通知し、通知頻度を最適化
+  - 3つのモード（detailed/summary/smart）で柔軟な表示制御
+  - スマートモードで重要イベント（削除など）は常に詳細表示
 - **🎨 リッチな通知**: Slack Attachmentsによる色分けと詳細情報の表示
   - イベントタイプに応じた色分け（追加=緑、更新=黄、削除=赤）
   - コンテナイメージとタグ情報
@@ -70,15 +73,27 @@ BotKubeやRobustaなどの既存ツールは**ClusterRole**（クラスタ全体
        │
        │ (unique events)
        │
-┌──────▼──────┐
-│  Formatter  │  メッセージの整形（Slack Attachments）
-└──────┬──────┘
-       │
-       │ (formatted message)
-       │
-┌──────▼──────┐
-│  Notifier   │  通知の送信
-└──────┬──────┘
+       ├──────────────────┐
+       │                  │
+       │ (batching=off)   │ (batching=on)
+       │                  │
+       │           ┌──────▼──────┐
+       │           │   Batcher   │  イベント集約・バッチ処理
+       │           └──────┬──────┘
+       │                  │
+       │                  │ (batch window)
+       │                  │
+       └──────────────────┤
+                          │
+                   ┌──────▼──────┐
+                   │  Formatter  │  メッセージの整形（Slack Attachments）
+                   └──────┬──────┘
+                          │
+                          │ (formatted message)
+                          │
+                   ┌──────▼──────┐
+                   │  Notifier   │  通知の送信
+                   └──────┬──────┘
        │
        │ (webhook)
        │
@@ -124,7 +139,7 @@ releases:
   - name: kube-watcher
     namespace: monitoring
     chart: kube-watcher/kube-watcher
-    version: ~0.3.0
+    version: ~0.4.0
     values:
       - namespace: monitoring
         slack:
@@ -141,6 +156,11 @@ releases:
             enabled: true
             ttlSeconds: 300
             maxCacheSize: 1000
+          # バッチ処理設定（オプション）
+          batching:
+            enabled: false
+            windowSeconds: 300
+            mode: smart
 ```
 
 ```bash
@@ -302,6 +322,17 @@ deduplication:
   enabled: true        # 重複排除を有効化
   ttlSeconds: 300      # 5分間同じイベントは通知しない
   maxCacheSize: 1000   # 最大1000エントリをキャッシュ
+
+# イベントバッチ処理設定（オプション、v0.4.0以降）
+batching:
+  enabled: false       # バッチ処理を有効化
+  windowSeconds: 300   # 5分間のイベントをまとめて通知
+  mode: smart          # detailed/summary/smart
+  smart:
+    maxEventsPerGroup: 5    # グループごとに最大5件まで詳細表示
+    maxTotalEvents: 20      # 合計20件を超えるとサマリーモード
+    alwaysShowDetails:      # 常に詳細表示するイベントタイプ
+      - DELETED
 ```
 
 ### テンプレート変数
@@ -402,6 +433,9 @@ make lint-fix
 │   ├── dedup/                  # 重複イベント抑止
 │   │   ├── dedup.go
 │   │   └── dedup_test.go
+│   ├── batcher/                # イベントバッチ処理
+│   │   ├── batcher.go
+│   │   └── batcher_test.go
 │   ├── reload/                 # 設定ホットリロード
 │   │   ├── reload.go
 │   │   └── reload_test.go
@@ -455,8 +489,8 @@ rules:
 ### Step 3（一部完了）🚧
 - [x] **重複イベント抑止（LRUキャッシュ）** (v0.2.0) - 同一イベントの重複通知を防止
 - [x] **ConfigMapのホットリロード** (v0.3.0) - Pod再起動なしで設定を自動反映
+- [x] **イベント集約とバッチ処理** (v0.4.0) - 複数イベントをまとめて通知、3つのモード対応
 - [ ] 追加の通知先対応（Teams、Discord、汎用Webhook）
-- [ ] イベント集約とバッチ処理
 
 ### Step 4（将来）
 - [ ] リソースタイプごとのカスタムテンプレート
@@ -508,7 +542,19 @@ kube-watcher には複数の通知削減機能があります：
    - `deduplication.enabled: true` で有効化
    - `ttlSeconds` で重複判定期間を調整（デフォルト: 300秒）
 
-3. **イベントタイプフィルター**
+3. **イベントバッチ処理** (v0.4.0以降、要設定)
+   - 複数のイベントをまとめて通知し、通知回数を削減
+   - `batching.enabled: true` で有効化
+   - `windowSeconds` でバッチウィンドウを調整（デフォルト: 300秒 = 5分）
+   - スマートモードで自動的に詳細/サマリーを切り替え
+   ```yaml
+   batching:
+     enabled: true
+     windowSeconds: 300  # 5分ごとにまとめて通知
+     mode: smart
+   ```
+
+4. **イベントタイプフィルター**
    - UPDATED イベントを除外することで通知を大幅削減
    ```yaml
    filters:

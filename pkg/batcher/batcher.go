@@ -11,10 +11,14 @@ import (
 // BatchMode represents the batching mode
 type BatchMode string
 
+// Batch mode constants
 const (
-	BatchModeDetailed BatchMode = "detailed" // Show all events with details
-	BatchModeSummary  BatchMode = "summary"  // Show only summary counts
-	BatchModeSmart    BatchMode = "smart"    // Smart grouping based on config
+	// BatchModeDetailed shows all events with details
+	BatchModeDetailed BatchMode = "detailed"
+	// BatchModeSummary shows only summary counts
+	BatchModeSummary BatchMode = "summary"
+	// BatchModeSmart uses smart grouping based on config
+	BatchModeSmart BatchMode = "smart"
 )
 
 // SmartConfig represents smart batching configuration
