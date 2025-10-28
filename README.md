@@ -3,7 +3,8 @@
 Namespace限定権限で動作する、軽量なKubernetesリソース監視Bot
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Go Version](https://img.shields.io/badge/Go-1.21+-blue.svg)](https://golang.org/)
+[![Go Version](https://img.shields.io/badge/Go-1.25+-blue.svg)](https://golang.org/)
+[![Release](https://img.shields.io/github/v/release/kqns91/kube-watcher)](https://github.com/kqns91/kube-watcher/releases)
 
 ## 概要
 
@@ -16,6 +17,11 @@ BotKubeやRobustaなどの既存ツールは**ClusterRole**（クラスタ全体
 - **🔒 セキュア**: ClusterRole不要、Namespace限定のRole権限のみで動作
 - **🔍 柔軟な監視**: Pod、Deployment、Serviceなど複数のリソースタイプに対応
 - **⚙️ 設定可能なフィルター**: イベントタイプ（作成/更新/削除）やラベルによるフィルタリング
+- **🎨 リッチな通知**: Slack Attachmentsによる色分けと詳細情報の表示
+  - イベントタイプに応じた色分け（追加=緑、更新=黄、削除=赤）
+  - コンテナイメージとタグ情報
+  - レプリカ数の詳細（Desired/Ready/Current）
+  - Podステータス、理由、メッセージなどの詳細情報
 - **✨ カスタマイズ可能**: Goテンプレートを使用したSlackメッセージのカスタマイズ
 - **🪶 軽量**: 最小限のリソースフットプリント、シンプルな依存関係
 
@@ -95,7 +101,7 @@ releases:
   - name: kube-watcher
     namespace: monitoring
     chart: kube-watcher/kube-watcher
-    version: ~0.1.1
+    version: ~0.1.4
     values:
       - namespace: monitoring
         slack:
@@ -182,6 +188,35 @@ kubectl get pods -l app=kube-watcher
 kubectl logs -l app=kube-watcher -f
 ```
 
+## Slack通知の表示例
+
+v0.1.4 から、Slack Attachments API を使用したリッチな通知フォーマットに対応しています。
+
+### 通知の色分け
+
+イベントタイプに応じて、メッセージの左側に色が表示されます：
+
+- 🟢 **ADDED（作成）**: 緑色 - 新しいリソースが作成されたとき
+- 🟡 **UPDATED（更新）**: 黄色 - 既存のリソースが更新されたとき
+- 🔴 **DELETED（削除）**: 赤色 - リソースが削除されたとき
+
+### 表示される詳細情報
+
+リソースタイプに応じて、以下の詳細情報が自動的に表示されます：
+
+#### Deployment の場合
+- コンテナ情報（名前とイメージタグ）
+- レプリカ情報（Desired / Ready / Current）
+- Deployment のステータスと理由
+
+#### Pod の場合
+- Podのステータス（Running、Pending、Failed など）
+- コンテナイメージ情報
+- 理由とメッセージ（エラー時など）
+
+#### Service の場合
+- サービスタイプ（ClusterIP、LoadBalancer など）
+
 ## 設定方法
 
 ### 監視可能なリソース
@@ -239,6 +274,8 @@ notifier:
 
 `template`フィールドで利用可能な変数は以下の通りです。
 
+#### 基本情報
+
 | 変数 | 説明 | 例 |
 |------|------|-----|
 | `.Kind` | リソースの種類 | `Pod`, `Deployment` |
@@ -247,6 +284,19 @@ notifier:
 | `.EventType` | イベントタイプ | `ADDED`, `UPDATED`, `DELETED` |
 | `.Timestamp` | イベント発生時刻 | `2025-10-28T12:34:56Z` |
 | `.Labels` | リソースのラベル | `map[app:web env:prod]` |
+
+#### 詳細情報（v0.1.4以降）
+
+| 変数 | 説明 | 対象リソース |
+|------|------|--------------|
+| `.Status` | リソースのステータス | Pod |
+| `.Reason` | イベントの理由 | Pod, Deployment |
+| `.Message` | イベントメッセージ | Pod, Deployment |
+| `.Containers` | コンテナ情報（名前、イメージ） | Pod, Deployment |
+| `.Replicas` | レプリカ情報（Desired/Ready/Current） | Deployment, ReplicaSet, StatefulSet |
+| `.ServiceType` | サービスタイプ | Service |
+
+**注意**: v0.1.4 以降、デフォルトでは Slack Attachments 形式で通知が送信されるため、これらの詳細情報は自動的に整形されて表示されます。カスタムテンプレートを使用する場合のみ、これらの変数を明示的に参照する必要があります。
 
 ## 開発
 
@@ -351,17 +401,27 @@ rules:
 
 ## ロードマップ
 
-### Phase 2（計画中）
-- [x] **Helmチャート対応** ✅
+### Step 1（完了）✅
+- [x] **基本機能の実装** - Kubernetesリソースの監視とSlack通知
+- [x] **Helmチャート対応** - Helmによる簡単なデプロイ
+- [x] **CI/CD構築** - GitHub Actionsによる自動ビルドとリリース
+
+### Step 2（完了）✅
+- [x] **リッチな通知フォーマット** - Slack Attachments APIによる色分け表示
+- [x] **詳細情報の表示** - コンテナイメージ、レプリカ数、ステータスなど
+- [x] **イベントタイプ別の色分け** - ADDED/UPDATED/DELETED の視覚的区別
+
+### Step 3（計画中）
 - [ ] 重複イベント抑止（LRUキャッシュ）
 - [ ] ConfigMapのホットリロード
 - [ ] 追加の通知先対応（Teams、Discord、汎用Webhook）
+- [ ] イベント集約とバッチ処理
 
-### Phase 3（将来）
-- [ ] イベントのバッチ処理
-- [ ] リソースタイプごとのテンプレート
+### Step 4（将来）
+- [ ] リソースタイプごとのカスタムテンプレート
 - [ ] 複雑なルール記述のためのフィルターDSL
 - [ ] メトリクスエンドポイント（Prometheus対応）
+- [ ] Web UIダッシュボード
 
 ## トラブルシューティング
 
