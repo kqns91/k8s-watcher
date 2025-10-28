@@ -160,7 +160,11 @@ func (w *Watcher) createEventHandler(kind string) cache.ResourceEventHandler {
 				w.handler(event)
 			}
 		},
-		UpdateFunc: func(_, newObj interface{}) {
+		UpdateFunc: func(oldObj, newObj interface{}) {
+			// Skip if there's no meaningful change
+			if !w.hasSignificantChange(oldObj, newObj) {
+				return
+			}
 			event := w.convertToEvent(newObj, kind, "UPDATED")
 			if event != nil {
 				w.handler(event)
@@ -172,6 +176,100 @@ func (w *Watcher) createEventHandler(kind string) cache.ResourceEventHandler {
 				w.handler(event)
 			}
 		},
+	}
+}
+
+// hasSignificantChange checks if there's a significant change between old and new objects
+func (w *Watcher) hasSignificantChange(oldObj, newObj interface{}) bool {
+	oldMeta, ok1 := oldObj.(metav1.Object)
+	newMeta, ok2 := newObj.(metav1.Object)
+	if !ok1 || !ok2 {
+		return true // If we can't get metadata, assume there's a change
+	}
+
+	// Skip if ResourceVersion is the same (no actual change)
+	if oldMeta.GetResourceVersion() == newMeta.GetResourceVersion() {
+		return false
+	}
+
+	// Check for significant changes based on resource type
+	switch oldTyped := oldObj.(type) {
+	case *corev1.Pod:
+		newTyped := newObj.(*corev1.Pod)
+		// Only notify on status phase changes or container image changes
+		if oldTyped.Status.Phase != newTyped.Status.Phase {
+			return true
+		}
+		// Check if any container image changed
+		if len(oldTyped.Spec.Containers) != len(newTyped.Spec.Containers) {
+			return true
+		}
+		for i := range oldTyped.Spec.Containers {
+			if oldTyped.Spec.Containers[i].Image != newTyped.Spec.Containers[i].Image {
+				return true
+			}
+		}
+		return false
+
+	case *appsv1.Deployment:
+		newTyped := newObj.(*appsv1.Deployment)
+		// Notify on replica count changes
+		if *oldTyped.Spec.Replicas != *newTyped.Spec.Replicas {
+			return true
+		}
+		// Notify on ready replica count changes
+		if oldTyped.Status.ReadyReplicas != newTyped.Status.ReadyReplicas {
+			return true
+		}
+		// Notify on container image changes
+		if len(oldTyped.Spec.Template.Spec.Containers) != len(newTyped.Spec.Template.Spec.Containers) {
+			return true
+		}
+		for i := range oldTyped.Spec.Template.Spec.Containers {
+			if oldTyped.Spec.Template.Spec.Containers[i].Image != newTyped.Spec.Template.Spec.Containers[i].Image {
+				return true
+			}
+		}
+		return false
+
+	case *corev1.Service:
+		newTyped := newObj.(*corev1.Service)
+		// Notify on service type changes
+		if oldTyped.Spec.Type != newTyped.Spec.Type {
+			return true
+		}
+		// Notify on port changes
+		if len(oldTyped.Spec.Ports) != len(newTyped.Spec.Ports) {
+			return true
+		}
+		return false
+
+	case *appsv1.ReplicaSet:
+		newTyped := newObj.(*appsv1.ReplicaSet)
+		// Notify on replica count changes
+		if *oldTyped.Spec.Replicas != *newTyped.Spec.Replicas {
+			return true
+		}
+		if oldTyped.Status.ReadyReplicas != newTyped.Status.ReadyReplicas {
+			return true
+		}
+		return false
+
+	case *appsv1.StatefulSet:
+		newTyped := newObj.(*appsv1.StatefulSet)
+		// Notify on replica count changes
+		if *oldTyped.Spec.Replicas != *newTyped.Spec.Replicas {
+			return true
+		}
+		if oldTyped.Status.ReadyReplicas != newTyped.Status.ReadyReplicas {
+			return true
+		}
+		return false
+
+	default:
+		// For ConfigMap, Secret, and DaemonSet, compare ResourceVersion only
+		// This reduces noise significantly
+		return false
 	}
 }
 
