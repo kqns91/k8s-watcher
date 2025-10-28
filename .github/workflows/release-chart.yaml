@@ -37,11 +37,12 @@ jobs:
 
       - name: Commit and Push to gh-pages
         run: |
-          cp -r docs /tmp/helm-docs
+          mkdir -p /tmp/helm-release
+          cp -r docs/* /tmp/helm-release/
           git fetch origin gh-pages || true
           git checkout gh-pages || git checkout --orphan gh-pages
           rm -rf *
-          cp -r /tmp/helm-docs/* .
+          cp -r /tmp/helm-release/* .
           git add .
           git commit -m "Release Helm Chart ${{ github.ref_name }}" || exit 0
           git push origin gh-pages --force
