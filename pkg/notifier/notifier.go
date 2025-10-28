@@ -1,3 +1,4 @@
+// Package notifier provides notification delivery to external services.
 package notifier
 
 import (

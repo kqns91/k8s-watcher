@@ -1,3 +1,4 @@
+// Package formatter provides message formatting using Go templates.
 package formatter
 
 import (

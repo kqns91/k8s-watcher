@@ -1,3 +1,4 @@
+// Package filter provides event filtering functionality based on configured rules.
 package filter
 
 import (

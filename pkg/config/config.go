@@ -1,3 +1,4 @@
+// Package config provides configuration management for kube-watcher.
 package config
 
 import (

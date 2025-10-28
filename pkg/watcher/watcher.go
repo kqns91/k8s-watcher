@@ -1,3 +1,4 @@
+// Package watcher provides Kubernetes resource watching using informers.
 package watcher
 
 import (
@@ -138,7 +139,7 @@ func (w *Watcher) createEventHandler(kind string) cache.ResourceEventHandler {
 				w.handler(event)
 			}
 		},
-		UpdateFunc: func(oldObj, newObj interface{}) {
+		UpdateFunc: func(_, newObj interface{}) {
 			event := w.convertToEvent(newObj, kind, "UPDATED")
 			if event != nil {
 				w.handler(event)
