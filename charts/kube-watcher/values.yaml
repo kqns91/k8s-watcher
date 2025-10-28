@@ -12,7 +12,7 @@ namespace: default
 image:
   repository: ghcr.io/kqns91/kube-watcher
   pullPolicy: IfNotPresent
-  tag: "0.2.0"
+  tag: "0.3.0"
 
 # イメージプルシークレット（プライベートレジストリ使用時）
 imagePullSecrets: []

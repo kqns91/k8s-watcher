@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/kqns91/kube-watcher/pkg/filter"
 	"github.com/kqns91/kube-watcher/pkg/formatter"
 	"github.com/kqns91/kube-watcher/pkg/notifier"
+	"github.com/kqns91/kube-watcher/pkg/reload"
 	"github.com/kqns91/kube-watcher/pkg/watcher"
 )
 
@@ -29,54 +31,93 @@ func main() {
 
 	log.Printf("Starting kube-watcher for namespace: %s", cfg.Namespace)
 
-	// Initialize formatter
-	fmt, err := formatter.NewFormatter(cfg.Notifier.Slack.Template)
-	if err != nil {
-		log.Fatalf("Failed to create formatter: %v", err)
+	// Components that can be reloaded
+	var (
+		fmt           *formatter.Formatter
+		eventFilter   *filter.Filter
+		deduplicator  *dedup.Deduplicator
+		slackNotifier *notifier.SlackNotifier
+		mu            sync.RWMutex // Protects the components above
+	)
+
+	// Initialize components
+	initComponents := func(c *config.Config) error {
+		mu.Lock()
+		defer mu.Unlock()
+
+		// Initialize formatter
+		newFmt, err := formatter.NewFormatter(c.Notifier.Slack.Template)
+		if err != nil {
+			return err
+		}
+		fmt = newFmt
+
+		// Initialize notifier
+		slackNotifier = notifier.NewSlackNotifier(c.Notifier.Slack.WebhookURL)
+
+		// Initialize filter
+		eventFilter = filter.NewFilter(c)
+
+		// Initialize or update deduplicator
+		if c.Deduplication.Enabled {
+			if deduplicator != nil {
+				deduplicator.Stop()
+			}
+			ttl := time.Duration(c.Deduplication.TTLSeconds) * time.Second
+			deduplicator = dedup.NewDeduplicator(ttl, c.Deduplication.MaxCacheSize)
+			log.Printf("Deduplication enabled: TTL=%v, MaxCacheSize=%d", ttl, c.Deduplication.MaxCacheSize)
+		} else if deduplicator != nil {
+			deduplicator.Stop()
+			deduplicator = nil
+			log.Println("Deduplication disabled")
+		}
+
+		return nil
 	}
 
-	// Initialize notifier
-	slackNotifier := notifier.NewSlackNotifier(cfg.Notifier.Slack.WebhookURL)
-
-	// Initialize filter
-	eventFilter := filter.NewFilter(cfg)
-
-	// Initialize deduplicator if enabled
-	var deduplicator *dedup.Deduplicator
-	if cfg.Deduplication.Enabled {
-		ttl := time.Duration(cfg.Deduplication.TTLSeconds) * time.Second
-		deduplicator = dedup.NewDeduplicator(ttl, cfg.Deduplication.MaxCacheSize)
+	// Initialize components with initial config
+	if err := initComponents(cfg); err != nil {
+		log.Fatalf("Failed to initialize components: %v", err)
+	}
+	if deduplicator != nil {
 		defer deduplicator.Stop()
-		log.Printf("Deduplication enabled: TTL=%v, MaxCacheSize=%d", ttl, cfg.Deduplication.MaxCacheSize)
 	}
 
 	// Create event handler
 	eventHandler := func(event *watcher.Event) {
+		// Lock components for reading
+		mu.RLock()
+		currentFilter := eventFilter
+		currentDedup := deduplicator
+		currentFormatter := fmt
+		currentNotifier := slackNotifier
+		mu.RUnlock()
+
 		// Apply filters
-		if !eventFilter.ShouldProcess(event) {
+		if !currentFilter.ShouldProcess(event) {
 			log.Printf("Event filtered out: %s %s/%s (%s)", event.Kind, event.Namespace, event.Name, event.EventType)
 			return
 		}
 
 		// Apply deduplication if enabled
-		if deduplicator != nil {
+		if currentDedup != nil {
 			key := dedup.EventKey{
 				Kind:      event.Kind,
 				Namespace: event.Namespace,
 				Name:      event.Name,
 				EventType: event.EventType,
 			}
-			if !deduplicator.ShouldProcess(key, event) {
+			if !currentDedup.ShouldProcess(key, event) {
 				log.Printf("Event deduplicated: %s %s/%s (%s)", event.Kind, event.Namespace, event.Name, event.EventType)
 				return
 			}
 		}
 
 		// Format message as Slack attachment
-		slackMessage := fmt.FormatSlackMessage(event)
+		slackMessage := currentFormatter.FormatSlackMessage(event)
 
 		// Send notification
-		if err := slackNotifier.SendMessage(slackMessage); err != nil {
+		if err := currentNotifier.SendMessage(slackMessage); err != nil {
 			log.Printf("Failed to send notification: %v", err)
 			return
 		}
@@ -88,6 +129,19 @@ func main() {
 	w, err := watcher.NewWatcher(cfg, eventHandler)
 	if err != nil {
 		log.Fatalf("Failed to create watcher: %v", err)
+	}
+
+	// Setup config hot-reload
+	configWatcher, err := reload.NewConfigWatcher(*configPath)
+	if err != nil {
+		log.Printf("Failed to create config watcher: %v (hot-reload disabled)", err)
+	} else {
+		configWatcher.AddCallback(func(newCfg *config.Config) error {
+			log.Printf("Applying new configuration for namespace: %s", newCfg.Namespace)
+			return initComponents(newCfg)
+		})
+		configWatcher.Start()
+		defer configWatcher.Stop()
 	}
 
 	// Setup signal handling
