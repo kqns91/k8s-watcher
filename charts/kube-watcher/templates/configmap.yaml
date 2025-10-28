@@ -31,3 +31,14 @@ data:
       slack:
         webhookUrl: {{ include "kube-watcher.slackWebhookUrl" . | quote }}
         template: {{ .Values.config.messageTemplate | quote }}
+
+    {{- if .Values.config.deduplication }}
+    deduplication:
+      enabled: {{ .Values.config.deduplication.enabled }}
+      {{- if .Values.config.deduplication.ttlSeconds }}
+      ttlSeconds: {{ .Values.config.deduplication.ttlSeconds }}
+      {{- end }}
+      {{- if .Values.config.deduplication.maxCacheSize }}
+      maxCacheSize: {{ .Values.config.deduplication.maxCacheSize }}
+      {{- end }}
+    {{- end }}

@@ -7,8 +7,10 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/kqns91/kube-watcher/pkg/config"
+	"github.com/kqns91/kube-watcher/pkg/dedup"
 	"github.com/kqns91/kube-watcher/pkg/filter"
 	"github.com/kqns91/kube-watcher/pkg/formatter"
 	"github.com/kqns91/kube-watcher/pkg/notifier"
@@ -39,12 +41,35 @@ func main() {
 	// Initialize filter
 	eventFilter := filter.NewFilter(cfg)
 
+	// Initialize deduplicator if enabled
+	var deduplicator *dedup.Deduplicator
+	if cfg.Deduplication.Enabled {
+		ttl := time.Duration(cfg.Deduplication.TTLSeconds) * time.Second
+		deduplicator = dedup.NewDeduplicator(ttl, cfg.Deduplication.MaxCacheSize)
+		defer deduplicator.Stop()
+		log.Printf("Deduplication enabled: TTL=%v, MaxCacheSize=%d", ttl, cfg.Deduplication.MaxCacheSize)
+	}
+
 	// Create event handler
 	eventHandler := func(event *watcher.Event) {
 		// Apply filters
 		if !eventFilter.ShouldProcess(event) {
 			log.Printf("Event filtered out: %s %s/%s (%s)", event.Kind, event.Namespace, event.Name, event.EventType)
 			return
+		}
+
+		// Apply deduplication if enabled
+		if deduplicator != nil {
+			key := dedup.EventKey{
+				Kind:      event.Kind,
+				Namespace: event.Namespace,
+				Name:      event.Name,
+				EventType: event.EventType,
+			}
+			if !deduplicator.ShouldProcess(key, event) {
+				log.Printf("Event deduplicated: %s %s/%s (%s)", event.Kind, event.Namespace, event.Name, event.EventType)
+				return
+			}
 		}
 
 		// Format message as Slack attachment

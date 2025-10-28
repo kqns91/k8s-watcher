@@ -12,7 +12,7 @@ namespace: default
 image:
   repository: ghcr.io/kqns91/kube-watcher
   pullPolicy: IfNotPresent
-  tag: "0.1.5"
+  tag: "0.2.0"
 
 # イメージプルシークレット（プライベートレジストリ使用時）
 imagePullSecrets: []
@@ -101,6 +101,19 @@ config:
   messageTemplate: |
     :kubernetes: *[{{ .Kind }}]* `{{ .Namespace }}/{{ .Name }}` が *{{ .EventType }}* されました
     時刻: {{ .Timestamp }}
+
+  # イベント重複排除設定（オプション）
+  deduplication:
+    # 有効化/無効化（デフォルト: false）
+    enabled: true
+
+    # キャッシュエントリのTTL（秒単位、デフォルト: 300 = 5分）
+    # この期間内に同じシグネチャのイベントは重複排除されます
+    ttlSeconds: 300
+
+    # 最大キャッシュサイズ（デフォルト: 1000）
+    # 上限に達すると最も古いエントリが削除されます
+    maxCacheSize: 1000
 
 # RBAC設定
 rbac:
