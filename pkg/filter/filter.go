@@ -2,20 +2,40 @@
 package filter
 
 import (
+	"log"
+
 	"github.com/kqns91/kube-watcher/pkg/config"
 	"github.com/kqns91/kube-watcher/pkg/watcher"
 )
 
 // Filter checks if an event should be processed based on configured rules
 type Filter struct {
-	config *config.Config
+	config     *config.Config
+	celFilters map[string]*CELFilter // resource kind -> CEL filter
 }
 
 // NewFilter creates a new Filter instance
 func NewFilter(cfg *config.Config) *Filter {
-	return &Filter{
-		config: cfg,
+	f := &Filter{
+		config:     cfg,
+		celFilters: make(map[string]*CELFilter),
 	}
+
+	// Compile CEL expressions for filters that have them
+	for i := range cfg.Filters {
+		filterCfg := &cfg.Filters[i]
+		if filterCfg.Expression != "" {
+			celFilter, err := NewCELFilter(filterCfg.Expression)
+			if err != nil {
+				log.Printf("Failed to compile CEL expression for %s: %v", filterCfg.Resource, err)
+				continue
+			}
+			f.celFilters[filterCfg.Resource] = celFilter
+			log.Printf("CEL filter compiled for %s: %s", filterCfg.Resource, filterCfg.Expression)
+		}
+	}
+
+	return f
 }
 
 // ShouldProcess determines if an event should be processed
@@ -27,6 +47,18 @@ func (f *Filter) ShouldProcess(event *watcher.Event) bool {
 		return true
 	}
 
+	// If CEL expression is defined, use it (takes precedence)
+	if celFilter, exists := f.celFilters[event.Kind]; exists {
+		result, err := celFilter.Evaluate(event)
+		if err != nil {
+			log.Printf("CEL evaluation error for %s: %v", event.Kind, err)
+			// Fall back to basic filters on error
+		} else {
+			return result
+		}
+	}
+
+	// Fall back to basic filters
 	// Check event type
 	if !f.matchesEventType(event.EventType, filterConfig.EventTypes) {
 		return false

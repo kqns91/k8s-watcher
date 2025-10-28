@@ -26,8 +26,9 @@ type ResourceConfig struct {
 // FilterConfig defines conditions for filtering events
 type FilterConfig struct {
 	Resource   string            `yaml:"resource"`
-	EventTypes []string          `yaml:"eventTypes"`
+	EventTypes []string          `yaml:"eventTypes,omitempty"`
 	Labels     map[string]string `yaml:"labels,omitempty"`
+	Expression string            `yaml:"expression,omitempty"` // CEL expression for advanced filtering
 }
 
 // NotifierConfig defines notification settings
