@@ -10,10 +10,10 @@ keywords:
   - slack
   - notifications
   - namespace-scoped
-home: https://github.com/yourusername/kube-watcher
+home: https://github.com/kqns91/kube-watcher
 sources:
-  - https://github.com/yourusername/kube-watcher
+  - https://github.com/kqns91/kube-watcher
 maintainers:
   - name: kube-watcher maintainers
     email: your-email@example.com
-icon: https://raw.githubusercontent.com/yourusername/kube-watcher/main/docs/icon.png
+icon: https://raw.githubusercontent.com/kqns91/kube-watcher/main/docs/icon.png

@@ -7,7 +7,7 @@ Namespace限定権限で動作する軽量なKubernetesリソース監視Bot
 ### Helmリポジトリの追加
 
 ```bash
-helm repo add kube-watcher https://yourusername.github.io/kube-watcher/
+helm repo add kube-watcher https://kqns91.github.io/kube-watcher/
 helm repo update
 ```
 
@@ -148,7 +148,7 @@ config:
 # helmfile.yaml
 repositories:
   - name: kube-watcher
-    url: https://yourusername.github.io/kube-watcher/
+    url: https://kqns91.github.io/kube-watcher/
 
 releases:
   - name: kube-watcher
@@ -246,5 +246,5 @@ MIT License
 
 ## リンク
 
-- [GitHub リポジトリ](https://github.com/yourusername/kube-watcher)
-- [Issue トラッカー](https://github.com/yourusername/kube-watcher/issues)
+- [GitHub リポジトリ](https://github.com/kqns91/kube-watcher)
+- [Issue トラッカー](https://github.com/kqns91/kube-watcher/issues)
