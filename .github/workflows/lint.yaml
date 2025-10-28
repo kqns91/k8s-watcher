@@ -5,16 +5,16 @@ on:
     branches:
       - main
     paths:
-      - '**.go'
-      - 'go.mod'
-      - 'go.sum'
-      - '.golangci.yml'
+      - "**.go"
+      - "go.mod"
+      - "go.sum"
+      - ".golangci.yml"
   pull_request:
     paths:
-      - '**.go'
-      - 'go.mod'
-      - 'go.sum'
-      - '.golangci.yml'
+      - "**.go"
+      - "go.mod"
+      - "go.sum"
+      - ".golangci.yml"
 
 permissions:
   contents: read
@@ -31,7 +31,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.21'
+          go-version: "1.21"
           cache: true
 
       - name: golangci-lint
