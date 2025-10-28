@@ -154,7 +154,7 @@ releases:
   - name: kube-watcher
     namespace: monitoring
     chart: kube-watcher/kube-watcher
-    version: ~0.1.0
+    version: ~0.1.1
     values:
       - namespace: monitoring
         slack:
