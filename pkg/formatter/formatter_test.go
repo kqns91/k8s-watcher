@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/yourusername/kube-watcher/pkg/watcher"
+	"github.com/kqns91/kube-watcher/pkg/watcher"
 )
 
 func TestNewFormatter_ValidTemplate(t *testing.T) {
@@ -294,5 +294,242 @@ func TestFormat_SpecialCharacters(t *testing.T) {
 				t.Errorf("Format() = %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestFormatSlackMessage_BasicFields(t *testing.T) {
+	formatter := &Formatter{}
+	testTime := time.Date(2025, 10, 28, 12, 0, 0, 0, time.UTC)
+
+	event := &watcher.Event{
+		Kind:      "Pod",
+		Namespace: "default",
+		Name:      "test-pod",
+		EventType: "ADDED",
+		Timestamp: testTime,
+	}
+
+	msg := formatter.FormatSlackMessage(event)
+
+	if len(msg.Attachments) != 1 {
+		t.Fatalf("Expected 1 attachment, got %d", len(msg.Attachments))
+	}
+
+	attachment := msg.Attachments[0]
+
+	if attachment.Color != "good" {
+		t.Errorf("Expected color 'good', got %q", attachment.Color)
+	}
+
+	expectedTitle := "[Pod] default/test-pod"
+	if attachment.Title != expectedTitle {
+		t.Errorf("Expected title %q, got %q", expectedTitle, attachment.Title)
+	}
+
+	if attachment.Timestamp != testTime.Unix() {
+		t.Errorf("Expected timestamp %d, got %d", testTime.Unix(), attachment.Timestamp)
+	}
+
+	// 基本フィールドの確認
+	if len(attachment.Fields) < 2 {
+		t.Errorf("Expected at least 2 fields, got %d", len(attachment.Fields))
+	}
+}
+
+func TestFormatSlackMessage_EventTypeColors(t *testing.T) {
+	tests := []struct {
+		eventType string
+		color     string
+	}{
+		{"ADDED", "good"},
+		{"UPDATED", "warning"},
+		{"DELETED", "danger"},
+		{"UNKNOWN", "#808080"},
+	}
+
+	formatter := &Formatter{}
+
+	for _, tt := range tests {
+		t.Run(tt.eventType, func(t *testing.T) {
+			event := &watcher.Event{
+				Kind:      "Pod",
+				Namespace: "default",
+				Name:      "test",
+				EventType: tt.eventType,
+				Timestamp: time.Now(),
+			}
+
+			msg := formatter.FormatSlackMessage(event)
+			if len(msg.Attachments) == 0 {
+				t.Fatal("No attachments in message")
+			}
+
+			if msg.Attachments[0].Color != tt.color {
+				t.Errorf("Expected color %q for %s, got %q", tt.color, tt.eventType, msg.Attachments[0].Color)
+			}
+		})
+	}
+}
+
+func TestFormatSlackMessage_WithContainers(t *testing.T) {
+	formatter := &Formatter{}
+
+	event := &watcher.Event{
+		Kind:      "Deployment",
+		Namespace: "production",
+		Name:      "web-app",
+		EventType: "UPDATED",
+		Timestamp: time.Now(),
+		Containers: []watcher.ContainerInfo{
+			{Name: "nginx", Image: "nginx:1.21"},
+			{Name: "sidecar", Image: "envoy:v1.20.0"},
+		},
+	}
+
+	msg := formatter.FormatSlackMessage(event)
+	attachment := msg.Attachments[0]
+
+	// コンテナフィールドが存在するか確認
+	var containerField *struct {
+		Title string
+		Value string
+		Short bool
+	}
+	for _, field := range attachment.Fields {
+		if field.Title == "コンテナ" {
+			containerField = &struct {
+				Title string
+				Value string
+				Short bool
+			}{field.Title, field.Value, field.Short}
+			break
+		}
+	}
+
+	if containerField == nil {
+		t.Fatal("Container field not found")
+	}
+
+	if !strings.Contains(containerField.Value, "nginx:1.21") {
+		t.Errorf("Container field should contain nginx:1.21, got %q", containerField.Value)
+	}
+
+	if !strings.Contains(containerField.Value, "envoy:v1.20.0") {
+		t.Errorf("Container field should contain envoy:v1.20.0, got %q", containerField.Value)
+	}
+}
+
+func TestFormatSlackMessage_WithReplicas(t *testing.T) {
+	formatter := &Formatter{}
+
+	event := &watcher.Event{
+		Kind:      "Deployment",
+		Namespace: "default",
+		Name:      "app",
+		EventType: "UPDATED",
+		Timestamp: time.Now(),
+		Replicas: &watcher.ReplicaInfo{
+			Desired: 3,
+			Ready:   2,
+			Current: 3,
+		},
+	}
+
+	msg := formatter.FormatSlackMessage(event)
+	attachment := msg.Attachments[0]
+
+	// レプリカフィールドが存在するか確認
+	var replicaField *struct {
+		Title string
+		Value string
+	}
+	for _, field := range attachment.Fields {
+		if field.Title == "レプリカ" {
+			replicaField = &struct {
+				Title string
+				Value string
+			}{field.Title, field.Value}
+			break
+		}
+	}
+
+	if replicaField == nil {
+		t.Fatal("Replica field not found")
+	}
+
+	expectedValue := "Desired: 3, Ready: 2, Current: 3"
+	if replicaField.Value != expectedValue {
+		t.Errorf("Expected replica value %q, got %q", expectedValue, replicaField.Value)
+	}
+}
+
+func TestFormatSlackMessage_WithStatus(t *testing.T) {
+	formatter := &Formatter{}
+
+	event := &watcher.Event{
+		Kind:      "Pod",
+		Namespace: "default",
+		Name:      "test-pod",
+		EventType: "UPDATED",
+		Timestamp: time.Now(),
+		Status:    "Running",
+		Reason:    "Started",
+		Message:   "Container started successfully",
+	}
+
+	msg := formatter.FormatSlackMessage(event)
+	attachment := msg.Attachments[0]
+
+	// ステータスフィールドが存在するか確認
+	var hasStatus, hasReason, hasMessage bool
+	for _, field := range attachment.Fields {
+		if field.Title == "ステータス" && field.Value == "Running" {
+			hasStatus = true
+		}
+		if field.Title == "理由" && field.Value == "Started" {
+			hasReason = true
+		}
+		if field.Title == "メッセージ" && field.Value == "Container started successfully" {
+			hasMessage = true
+		}
+	}
+
+	if !hasStatus {
+		t.Error("Status field not found or incorrect")
+	}
+	if !hasReason {
+		t.Error("Reason field not found or incorrect")
+	}
+	if !hasMessage {
+		t.Error("Message field not found or incorrect")
+	}
+}
+
+func TestFormatSlackMessage_ServiceType(t *testing.T) {
+	formatter := &Formatter{}
+
+	event := &watcher.Event{
+		Kind:        "Service",
+		Namespace:   "default",
+		Name:        "web-service",
+		EventType:   "ADDED",
+		Timestamp:   time.Now(),
+		ServiceType: "LoadBalancer",
+	}
+
+	msg := formatter.FormatSlackMessage(event)
+	attachment := msg.Attachments[0]
+
+	// サービスタイプフィールドが存在するか確認
+	var hasServiceType bool
+	for _, field := range attachment.Fields {
+		if field.Title == "サービスタイプ" && field.Value == "LoadBalancer" {
+			hasServiceType = true
+			break
+		}
+	}
+
+	if !hasServiceType {
+		t.Error("ServiceType field not found or incorrect")
 	}
 }

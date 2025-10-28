@@ -2,8 +2,8 @@
 package filter
 
 import (
-	"github.com/yourusername/kube-watcher/pkg/config"
-	"github.com/yourusername/kube-watcher/pkg/watcher"
+	"github.com/kqns91/kube-watcher/pkg/config"
+	"github.com/kqns91/kube-watcher/pkg/watcher"
 )
 
 // Filter checks if an event should be processed based on configured rules

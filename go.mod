@@ -1,4 +1,4 @@
-module github.com/yourusername/kube-watcher
+module github.com/kqns91/kube-watcher
 
 go 1.25.2
 

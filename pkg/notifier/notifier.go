@@ -22,7 +22,24 @@ type SlackNotifier struct {
 
 // SlackMessage represents a Slack message payload
 type SlackMessage struct {
-	Text string `json:"text"`
+	Text        string            `json:"text,omitempty"`
+	Attachments []SlackAttachment `json:"attachments,omitempty"`
+}
+
+// SlackAttachment represents a Slack message attachment
+type SlackAttachment struct {
+	Color     string              `json:"color,omitempty"`
+	Title     string              `json:"title,omitempty"`
+	Text      string              `json:"text,omitempty"`
+	Fields    []SlackAttachmentField `json:"fields,omitempty"`
+	Timestamp int64               `json:"ts,omitempty"`
+}
+
+// SlackAttachmentField represents a field in a Slack attachment
+type SlackAttachmentField struct {
+	Title string `json:"title"`
+	Value string `json:"value"`
+	Short bool   `json:"short"`
 }
 
 // NewSlackNotifier creates a new SlackNotifier
@@ -41,6 +58,11 @@ func (s *SlackNotifier) Send(message string) error {
 		Text: message,
 	}
 
+	return s.SendMessage(&payload)
+}
+
+// SendMessage sends a SlackMessage to Slack
+func (s *SlackNotifier) SendMessage(payload *SlackMessage) error {
 	jsonData, err := json.Marshal(payload)
 	if err != nil {
 		return fmt.Errorf("failed to marshal slack message: %w", err)

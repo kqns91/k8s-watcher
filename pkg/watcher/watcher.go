@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/yourusername/kube-watcher/pkg/config"
+	"github.com/kqns91/kube-watcher/pkg/config"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -18,6 +18,19 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
+// ContainerInfo represents container information
+type ContainerInfo struct {
+	Name  string
+	Image string
+}
+
+// ReplicaInfo represents replica information
+type ReplicaInfo struct {
+	Desired int32
+	Ready   int32
+	Current int32
+}
+
 // Event represents a Kubernetes resource event
 type Event struct {
 	Kind      string
@@ -27,6 +40,14 @@ type Event struct {
 	Timestamp time.Time
 	Object    runtime.Object
 	Labels    map[string]string
+
+	// Additional information
+	Reason      string
+	Message     string
+	Status      string
+	Containers  []ContainerInfo
+	Replicas    *ReplicaInfo
+	ServiceType string
 }
 
 // EventHandler is a function that handles resource events
@@ -158,46 +179,98 @@ func (w *Watcher) createEventHandler(kind string) cache.ResourceEventHandler {
 func (w *Watcher) convertToEvent(obj interface{}, kind, eventType string) *Event {
 	var meta metav1.Object
 	var labels map[string]string
+	event := &Event{
+		Kind:      kind,
+		EventType: eventType,
+		Timestamp: time.Now(),
+		Object:    obj.(runtime.Object),
+	}
 
-	// Extract metadata based on object type
+	// Extract metadata and additional information based on object type
 	switch o := obj.(type) {
 	case *corev1.Pod:
 		meta = o
 		labels = o.Labels
+		event.Status = string(o.Status.Phase)
+		event.Reason = o.Status.Reason
+		event.Message = o.Status.Message
+		// Extract container information
+		for _, container := range o.Spec.Containers {
+			event.Containers = append(event.Containers, ContainerInfo{
+				Name:  container.Name,
+				Image: container.Image,
+			})
+		}
+
 	case *appsv1.Deployment:
 		meta = o
 		labels = o.Labels
+		event.Replicas = &ReplicaInfo{
+			Desired: *o.Spec.Replicas,
+			Ready:   o.Status.ReadyReplicas,
+			Current: o.Status.Replicas,
+		}
+		// Extract container information from template
+		for _, container := range o.Spec.Template.Spec.Containers {
+			event.Containers = append(event.Containers, ContainerInfo{
+				Name:  container.Name,
+				Image: container.Image,
+			})
+		}
+		// Check deployment status
+		for _, cond := range o.Status.Conditions {
+			if cond.Type == appsv1.DeploymentProgressing {
+				event.Status = string(cond.Status)
+				event.Reason = cond.Reason
+				event.Message = cond.Message
+				break
+			}
+		}
+
 	case *corev1.Service:
 		meta = o
 		labels = o.Labels
+		event.ServiceType = string(o.Spec.Type)
+
 	case *corev1.ConfigMap:
 		meta = o
 		labels = o.Labels
+
 	case *corev1.Secret:
 		meta = o
 		labels = o.Labels
+
 	case *appsv1.ReplicaSet:
 		meta = o
 		labels = o.Labels
+		event.Replicas = &ReplicaInfo{
+			Desired: *o.Spec.Replicas,
+			Ready:   o.Status.ReadyReplicas,
+			Current: o.Status.Replicas,
+		}
+
 	case *appsv1.StatefulSet:
 		meta = o
 		labels = o.Labels
+		event.Replicas = &ReplicaInfo{
+			Desired: *o.Spec.Replicas,
+			Ready:   o.Status.ReadyReplicas,
+			Current: o.Status.Replicas,
+		}
+
 	case *appsv1.DaemonSet:
 		meta = o
 		labels = o.Labels
+
 	default:
 		return nil
 	}
 
-	return &Event{
-		Kind:      kind,
-		Namespace: meta.GetNamespace(),
-		Name:      meta.GetName(),
-		EventType: eventType,
-		Timestamp: time.Now(),
-		Object:    obj.(runtime.Object),
-		Labels:    labels,
-	}
+	event.Namespace = meta.GetNamespace()
+	event.Name = meta.GetName()
+	event.Labels = labels
+
+	return event
 }
 
 // Stop stops the watcher

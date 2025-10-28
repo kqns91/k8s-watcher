@@ -8,11 +8,11 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/yourusername/kube-watcher/pkg/config"
-	"github.com/yourusername/kube-watcher/pkg/filter"
-	"github.com/yourusername/kube-watcher/pkg/formatter"
-	"github.com/yourusername/kube-watcher/pkg/notifier"
-	"github.com/yourusername/kube-watcher/pkg/watcher"
+	"github.com/kqns91/kube-watcher/pkg/config"
+	"github.com/kqns91/kube-watcher/pkg/filter"
+	"github.com/kqns91/kube-watcher/pkg/formatter"
+	"github.com/kqns91/kube-watcher/pkg/notifier"
+	"github.com/kqns91/kube-watcher/pkg/watcher"
 )
 
 func main() {
@@ -47,15 +47,11 @@ func main() {
 			return
 		}
 
-		// Format message
-		message, err := fmt.Format(event)
-		if err != nil {
-			log.Printf("Failed to format event: %v", err)
-			return
-		}
+		// Format message as Slack attachment
+		slackMessage := fmt.FormatSlackMessage(event)
 
 		// Send notification
-		if err := slackNotifier.Send(message); err != nil {
+		if err := slackNotifier.SendMessage(slackMessage); err != nil {
 			log.Printf("Failed to send notification: %v", err)
 			return
 		}
