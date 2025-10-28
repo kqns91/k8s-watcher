@@ -20,6 +20,7 @@ BotKubeやRobustaなどの既存ツールは**ClusterRole**（クラスタ全体
 - **🎯 スマートな通知**: 不要な通知を削減する高度なフィルタリング
   - **変更差分フィルタリング** (v0.1.5): 意味のある変更のみを通知（レプリカ数、イメージ、ステータス変化など）
   - **重複イベント抑止** (v0.2.0): LRUキャッシュによる同一イベントの重複通知防止
+- **🔄 ホットリロード** (v0.3.0): ConfigMapの変更を自動検知してPod再起動不要で設定反映
 - **🎨 リッチな通知**: Slack Attachmentsによる色分けと詳細情報の表示
   - イベントタイプに応じた色分け（追加=緑、更新=黄、削除=赤）
   - コンテナイメージとタグ情報
@@ -31,6 +32,19 @@ BotKubeやRobustaなどの既存ツールは**ClusterRole**（クラスタ全体
 ## アーキテクチャ
 
 ```
+┌──────────────┐
+│  ConfigMap   │  設定ファイル（ConfigMap）
+└──────┬───────┘
+       │
+       │ (fsnotify watch)
+       │
+┌──────▼────────┐
+│ ConfigWatcher │  設定変更の自動検知・ホットリロード
+└───────────────┘
+       ┃
+       ┃ (reload components)
+       ┃
+       ▼
 ┌─────────────┐
 │ Kubernetes  │
 │   API       │
@@ -110,7 +124,7 @@ releases:
   - name: kube-watcher
     namespace: monitoring
     chart: kube-watcher/kube-watcher
-    version: ~0.2.0
+    version: ~0.3.0
     values:
       - namespace: monitoring
         slack:
@@ -388,6 +402,9 @@ make lint-fix
 │   ├── dedup/                  # 重複イベント抑止
 │   │   ├── dedup.go
 │   │   └── dedup_test.go
+│   ├── reload/                 # 設定ホットリロード
+│   │   ├── reload.go
+│   │   └── reload_test.go
 │   ├── formatter/              # メッセージ整形
 │   │   └── formatter.go
 │   └── notifier/               # 通知送信
@@ -437,7 +454,7 @@ rules:
 
 ### Step 3（一部完了）🚧
 - [x] **重複イベント抑止（LRUキャッシュ）** (v0.2.0) - 同一イベントの重複通知を防止
-- [ ] ConfigMapのホットリロード
+- [x] **ConfigMapのホットリロード** (v0.3.0) - Pod再起動なしで設定を自動反映
 - [ ] 追加の通知先対応（Teams、Discord、汎用Webhook）
 - [ ] イベント集約とバッチ処理
 
@@ -498,6 +515,30 @@ kube-watcher には複数の通知削減機能があります：
      - resource: Pod
        eventTypes: ["ADDED", "DELETED"]  # UPDATEDを除外
    ```
+
+### 設定変更が反映されない場合
+
+v0.3.0 以降、ConfigMap の変更は自動的に検知され、Pod の再起動なしで反映されます。
+
+1. **ホットリロードの動作確認**
+   ```bash
+   # ConfigMapを更新
+   kubectl edit configmap kube-watcher-config -n your-namespace
+
+   # ログで設定の再読み込みを確認
+   kubectl logs -l app=kube-watcher -n your-namespace -f
+   # 以下のようなログが出力されるはずです：
+   # "Configuration file changed, reloading..."
+   # "Configuration reloaded successfully"
+   ```
+
+2. **ホットリロードが動作しない場合**
+   - ConfigMap がマウントされているか確認してください
+   - ログにエラーが出ていないか確認してください
+   - 最終手段として Pod を再起動してください：
+     ```bash
+     kubectl rollout restart deployment kube-watcher -n your-namespace
+     ```
 
 ## コントリビューション
 
