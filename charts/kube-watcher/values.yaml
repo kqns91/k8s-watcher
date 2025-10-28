@@ -10,9 +10,9 @@ namespace: default
 
 # Dockerイメージ設定
 image:
-  repository: kube-watcher
+  repository: ghcr.io/kqns91/kube-watcher
   pullPolicy: IfNotPresent
-  tag: "latest"
+  tag: "0.1.2"
 
 # イメージプルシークレット（プライベートレジストリ使用時）
 imagePullSecrets: []
