@@ -18,13 +18,18 @@ FROM alpine:latest
 
 RUN apk --no-cache add ca-certificates
 
-WORKDIR /root/
+# Run as non-root user
+RUN adduser -D -u 1000 watcher
+
+WORKDIR /home/watcher
 
 # Copy the binary from builder
 COPY --from=builder /app/kube-watcher .
 
-# Run as non-root user
-RUN adduser -D -u 1000 watcher
+# Change ownership to watcher user
+RUN chown watcher:watcher /home/watcher/kube-watcher && \
+    chmod +x /home/watcher/kube-watcher
+
 USER watcher
 
 ENTRYPOINT ["./kube-watcher"]
