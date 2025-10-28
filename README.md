@@ -68,7 +68,7 @@ kube-watcherは、以下の3つの方法でデプロイできます：
 
 ```bash
 # Helmリポジトリの追加
-helm repo add kube-watcher https://yourusername.github.io/kube-watcher/
+helm repo add kube-watcher https://kqns91.github.io/kube-watcher/
 helm repo update
 
 # インストール
@@ -89,7 +89,7 @@ helmfileで宣言的に管理する場合：
 # helmfile.yaml
 repositories:
   - name: kube-watcher
-    url: https://yourusername.github.io/kube-watcher/
+    url: https://kqns91.github.io/kube-watcher/
 
 releases:
   - name: kube-watcher
@@ -124,7 +124,7 @@ helmfile apply
 ### 1. リポジトリのクローン
 
 ```bash
-git clone https://github.com/yourusername/kube-watcher.git
+git clone https://github.com/kqns91/kube-watcher.git
 cd kube-watcher
 ```
 
@@ -435,7 +435,7 @@ kubectl logs -l app=kube-watcher -n your-namespace
 
 ## サポート
 
-問題が発生した場合や機能のリクエストがある場合は、[GitHub Issues](https://github.com/yourusername/kube-watcher/issues)にてお気軽にお問い合わせください。
+問題が発生した場合や機能のリクエストがある場合は、[GitHub Issues](https://github.com/kqns91/kube-watcher/issues)にてお気軽にお問い合わせください。
 
 ---
 
