@@ -17,6 +17,9 @@ BotKubeやRobustaなどの既存ツールは**ClusterRole**（クラスタ全体
 - **🔒 セキュア**: ClusterRole不要、Namespace限定のRole権限のみで動作
 - **🔍 柔軟な監視**: Pod、Deployment、Serviceなど複数のリソースタイプに対応
 - **⚙️ 設定可能なフィルター**: イベントタイプ（作成/更新/削除）やラベルによるフィルタリング
+- **🎯 スマートな通知**: 不要な通知を削減する高度なフィルタリング
+  - **変更差分フィルタリング** (v0.1.5): 意味のある変更のみを通知（レプリカ数、イメージ、ステータス変化など）
+  - **重複イベント抑止** (v0.2.0): LRUキャッシュによる同一イベントの重複通知防止
 - **🎨 リッチな通知**: Slack Attachmentsによる色分けと詳細情報の表示
   - イベントタイプに応じた色分け（追加=緑、更新=黄、削除=赤）
   - コンテナイメージとタグ情報
@@ -36,7 +39,7 @@ BotKubeやRobustaなどの既存ツールは**ClusterRole**（クラスタ全体
        │ (informer/watch)
        │
 ┌──────▼──────┐
-│   Watcher   │  リソース変更の検知
+│   Watcher   │  リソース変更の検知 + 変更差分フィルタリング
 └──────┬──────┘
        │
        │ (events)
@@ -48,7 +51,13 @@ BotKubeやRobustaなどの既存ツールは**ClusterRole**（クラスタ全体
        │ (filtered events)
        │
 ┌──────▼──────┐
-│  Formatter  │  メッセージの整形
+│ Deduplicator│  重複イベント抑止（LRUキャッシュ）
+└──────┬──────┘
+       │
+       │ (unique events)
+       │
+┌──────▼──────┐
+│  Formatter  │  メッセージの整形（Slack Attachments）
 └──────┬──────┘
        │
        │ (formatted message)
@@ -101,7 +110,7 @@ releases:
   - name: kube-watcher
     namespace: monitoring
     chart: kube-watcher/kube-watcher
-    version: ~0.1.4
+    version: ~0.2.0
     values:
       - namespace: monitoring
         slack:
@@ -113,6 +122,11 @@ releases:
           filters:
             - resource: Pod
               eventTypes: [DELETED]
+          # 重複排除設定（オプション）
+          deduplication:
+            enabled: true
+            ttlSeconds: 300
+            maxCacheSize: 1000
 ```
 
 ```bash
@@ -268,6 +282,12 @@ notifier:
       {{- if .Labels }}
       ラベル: {{ range $k, $v := .Labels }}{{ $k }}={{ $v }} {{ end }}
       {{- end }}
+
+# イベント重複排除設定（オプション、v0.2.0以降）
+deduplication:
+  enabled: true        # 重複排除を有効化
+  ttlSeconds: 300      # 5分間同じイベントは通知しない
+  maxCacheSize: 1000   # 最大1000エントリをキャッシュ
 ```
 
 ### テンプレート変数
@@ -365,6 +385,9 @@ make lint-fix
 │   │   └── watcher.go
 │   ├── filter/                 # イベントフィルタリング
 │   │   └── filter.go
+│   ├── dedup/                  # 重複イベント抑止
+│   │   ├── dedup.go
+│   │   └── dedup_test.go
 │   ├── formatter/              # メッセージ整形
 │   │   └── formatter.go
 │   └── notifier/               # 通知送信
@@ -410,9 +433,10 @@ rules:
 - [x] **リッチな通知フォーマット** - Slack Attachments APIによる色分け表示
 - [x] **詳細情報の表示** - コンテナイメージ、レプリカ数、ステータスなど
 - [x] **イベントタイプ別の色分け** - ADDED/UPDATED/DELETED の視覚的区別
+- [x] **変更差分フィルタリング** (v0.1.5) - 意味のある変更のみを通知
 
-### Step 3（計画中）
-- [ ] 重複イベント抑止（LRUキャッシュ）
+### Step 3（一部完了）🚧
+- [x] **重複イベント抑止（LRUキャッシュ）** (v0.2.0) - 同一イベントの重複通知を防止
 - [ ] ConfigMapのホットリロード
 - [ ] 追加の通知先対応（Teams、Discord、汎用Webhook）
 - [ ] イベント集約とバッチ処理
@@ -452,6 +476,28 @@ kubectl logs -l app=kube-watcher -n your-namespace
 1. リソースが監視対象のNamespace内に存在することを確認してください
 2. フィルター設定を確認してください
 3. RBACのリソース権限を確認してください
+
+### 通知が頻繁すぎる場合
+
+kube-watcher には複数の通知削減機能があります：
+
+1. **変更差分フィルタリング** (v0.1.5以降、自動有効)
+   - 意味のある変更のみを通知します
+   - ResourceVersion が同じ場合は通知しません
+   - レプリカ数、イメージ、ステータスなどの重要な変更のみ検出
+
+2. **重複イベント抑止** (v0.2.0以降、要設定)
+   - 同じイベントが短時間に複数回発生しても1回だけ通知
+   - `deduplication.enabled: true` で有効化
+   - `ttlSeconds` で重複判定期間を調整（デフォルト: 300秒）
+
+3. **イベントタイプフィルター**
+   - UPDATED イベントを除外することで通知を大幅削減
+   ```yaml
+   filters:
+     - resource: Pod
+       eventTypes: ["ADDED", "DELETED"]  # UPDATEDを除外
+   ```
 
 ## コントリビューション
 
