@@ -1,0 +1,94 @@
+# golangci-lint configuration v2
+# https://golangci-lint.run/usage/configuration/
+# https://golangci-lint.run/docs/product/migration-guide
+
+version: "2"
+
+run:
+  timeout: 5m
+  tests: true
+  modules-download-mode: readonly
+
+output:
+  formats:
+    text:
+      path: stdout
+      colors: true
+  show-stats: true
+
+linters:
+  default: none
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - misspell
+    - revive
+    - gosec
+    - bodyclose
+  settings:
+    errcheck:
+      exclude-functions:
+        - (io.Closer).Close
+        - (*os.File).Close
+    revive:
+      confidence: 0.8
+      rules:
+        - name: blank-imports
+        - name: context-as-argument
+        - name: context-keys-type
+        - name: dot-imports
+        - name: error-return
+        - name: error-strings
+        - name: error-naming
+        - name: exported
+          arguments:
+            - disableStutteringCheck
+        - name: if-return
+        - name: increment-decrement
+        - name: var-naming
+        - name: var-declaration
+        - name: range
+        - name: receiver-naming
+        - name: time-naming
+        - name: indent-error-flow
+        - name: errorf
+        - name: empty-block
+        - name: superfluous-else
+        - name: unreachable-code
+        - name: redefines-builtin-id
+    gosec:
+      excludes:
+        - G104
+        - G304
+  exclusions:
+    rules:
+      # テストファイルでは一部のlinterを無効化
+      - path: '_test\.go'
+        linters:
+          - errcheck
+          - gosec
+          - revive
+      # 生成されたファイルを除外
+      - path: '.*\.pb\.go'
+        linters:
+          - all
+      # package commentは cmd/main.go では不要
+      - path: 'cmd/main\.go'
+        text: 'should have a package comment'
+        linters:
+          - revive
+      # informer.AddEventHandlerのエラーチェックは不要
+      - text: 'Error return value of `informer\.AddEventHandler` is not checked'
+        linters:
+          - errcheck
+      # defer resp.Body.Close()のエラーチェックは不要
+      - text: 'Error return value of `.*\.Body\.Close` is not checked'
+        linters:
+          - errcheck
+    generated: strict
+
+severity:
+  default: error

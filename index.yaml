@@ -1,0 +1,27 @@
+apiVersion: v1
+entries:
+  kube-watcher:
+  - apiVersion: v2
+    appVersion: 0.1.1
+    created: "2025-10-28T11:53:37.755162311Z"
+    description: Namespace限定権限で動作する軽量なKubernetesリソース監視Bot
+    digest: e9e5143273880230fb9c5cf20d89201b98b8a0a40a637b1368736099418407f1
+    home: https://github.com/yourusername/kube-watcher
+    icon: https://raw.githubusercontent.com/yourusername/kube-watcher/main/docs/icon.png
+    keywords:
+    - kubernetes
+    - monitoring
+    - slack
+    - notifications
+    - namespace-scoped
+    maintainers:
+    - email: your-email@example.com
+      name: kube-watcher maintainers
+    name: kube-watcher
+    sources:
+    - https://github.com/yourusername/kube-watcher
+    type: application
+    urls:
+    - https://kqns91.github.io/kube-watcher/kube-watcher-0.1.1.tgz
+    version: 0.1.1
+generated: "2025-10-28T11:53:37.754409336Z"
