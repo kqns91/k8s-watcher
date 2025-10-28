@@ -38,12 +38,13 @@ jobs:
       - name: Commit and Push to gh-pages
         run: |
           cp -r docs /tmp/helm-docs
+          git fetch origin gh-pages || true
           git checkout gh-pages || git checkout --orphan gh-pages
-          git rm -rf . || true
+          rm -rf *
           cp -r /tmp/helm-docs/* .
           git add .
           git commit -m "Release Helm Chart ${{ github.ref_name }}" || exit 0
-          git push origin gh-pages
+          git push origin gh-pages --force
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
