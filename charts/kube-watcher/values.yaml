@@ -1,0 +1,114 @@
+# デフォルト値
+# helmfile や helm install 時に上書き可能
+
+# レプリカ数
+replicaCount: 1
+
+# 監視対象のNamespace
+# 注意: RBACもこのNamespaceに作成されます
+namespace: default
+
+# Dockerイメージ設定
+image:
+  repository: kube-watcher
+  pullPolicy: IfNotPresent
+  tag: "latest"
+
+# イメージプルシークレット（プライベートレジストリ使用時）
+imagePullSecrets: []
+
+# ServiceAccount名の上書き（空の場合は自動生成）
+serviceAccountName: ""
+
+# Pod annotations
+podAnnotations: {}
+
+# Pod Security Context
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+
+# Container Security Context
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+    - ALL
+  readOnlyRootFilesystem: true
+
+# リソース制限
+resources:
+  limits:
+    cpu: 200m
+    memory: 256Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+# Node selector
+nodeSelector: {}
+
+# Tolerations
+tolerations: []
+
+# Affinity
+affinity: {}
+
+# Slack通知設定
+slack:
+  # Slack Webhook URL（直接指定する場合）
+  webhookUrl: ""
+
+  # 既存のSecretを使用する場合
+  existingSecret: ""
+  existingSecretKey: "webhook-url"
+
+# 監視設定
+config:
+  # 監視するリソースタイプ
+  resources:
+    - kind: Pod
+    - kind: Deployment
+    - kind: Service
+
+  # フィルター設定
+  filters:
+    - resource: Pod
+      eventTypes:
+        - ADDED
+        - DELETED
+        - UPDATED
+      # ラベルフィルター（オプション）
+      # labels:
+      #   app: web
+      #   environment: production
+
+    - resource: Deployment
+      eventTypes:
+        - ADDED
+        - DELETED
+        - UPDATED
+
+    - resource: Service
+      eventTypes:
+        - ADDED
+        - DELETED
+
+  # 通知メッセージテンプレート
+  # Go text/template形式
+  # 利用可能な変数: .Kind, .Namespace, .Name, .EventType, .Timestamp, .Labels
+  messageTemplate: |
+    :kubernetes: *[{{ .Kind }}]* `{{ .Namespace }}/{{ .Name }}` が *{{ .EventType }}* されました
+    時刻: {{ .Timestamp }}
+
+# RBAC設定
+rbac:
+  # RBACリソースを作成するかどうか
+  create: true
+
+  # 追加の権限ルール（必要に応じて）
+  extraRules: []
+  # - apiGroups: [""]
+  #   resources: ["events"]
+  #   verbs: ["list", "watch"]

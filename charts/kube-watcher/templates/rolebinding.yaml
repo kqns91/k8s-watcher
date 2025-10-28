@@ -1,0 +1,17 @@
+{{- if .Values.rbac.create }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "kube-watcher.fullname" . }}
+  namespace: {{ include "kube-watcher.namespace" . }}
+  labels:
+    {{- include "kube-watcher.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "kube-watcher.fullname" . }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "kube-watcher.serviceAccountName" . }}
+    namespace: {{ include "kube-watcher.namespace" . }}
+{{- end }}

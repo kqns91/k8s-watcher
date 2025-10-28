@@ -1,0 +1,34 @@
+# Namespace to monitor (required)
+namespace: "default"
+
+# Resources to watch
+resources:
+  - kind: Pod
+  - kind: Deployment
+  - kind: Service
+
+# Filters for notifications
+filters:
+  - resource: Pod
+    eventTypes: ["ADDED", "DELETED", "UPDATED"]
+    # Optional: filter by labels
+    # labels:
+    #   app: "web"
+
+  - resource: Deployment
+    eventTypes: ["ADDED", "DELETED", "UPDATED"]
+
+  - resource: Service
+    eventTypes: ["ADDED", "DELETED"]
+
+# Notification configuration
+notifier:
+  slack:
+    # Slack webhook URL (required)
+    webhookUrl: "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
+
+    # Message template using Go text/template syntax
+    # Available fields: .Kind, .Namespace, .Name, .EventType, .Timestamp
+    template: |
+      :kubernetes: *[{{ .Kind }}]* `{{ .Namespace }}/{{ .Name }}` was *{{ .EventType }}*
+      Time: {{ .Timestamp }}
