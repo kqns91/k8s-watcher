@@ -42,3 +42,29 @@ data:
       maxCacheSize: {{ .Values.config.deduplication.maxCacheSize }}
       {{- end }}
     {{- end }}
+
+    {{- if .Values.config.batching }}
+    batching:
+      enabled: {{ .Values.config.batching.enabled }}
+      {{- if .Values.config.batching.windowSeconds }}
+      windowSeconds: {{ .Values.config.batching.windowSeconds }}
+      {{- end }}
+      {{- if .Values.config.batching.mode }}
+      mode: {{ .Values.config.batching.mode | quote }}
+      {{- end }}
+      {{- if .Values.config.batching.smart }}
+      smart:
+        {{- if .Values.config.batching.smart.maxEventsPerGroup }}
+        maxEventsPerGroup: {{ .Values.config.batching.smart.maxEventsPerGroup }}
+        {{- end }}
+        {{- if .Values.config.batching.smart.maxTotalEvents }}
+        maxTotalEvents: {{ .Values.config.batching.smart.maxTotalEvents }}
+        {{- end }}
+        {{- if .Values.config.batching.smart.alwaysShowDetails }}
+        alwaysShowDetails:
+        {{- range .Values.config.batching.smart.alwaysShowDetails }}
+          - {{ . }}
+        {{- end }}
+        {{- end }}
+      {{- end }}
+    {{- end }}

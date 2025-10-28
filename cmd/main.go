@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/kqns91/kube-watcher/pkg/batcher"
 	"github.com/kqns91/kube-watcher/pkg/config"
 	"github.com/kqns91/kube-watcher/pkg/dedup"
 	"github.com/kqns91/kube-watcher/pkg/filter"
@@ -36,6 +37,7 @@ func main() {
 		fmt           *formatter.Formatter
 		eventFilter   *filter.Filter
 		deduplicator  *dedup.Deduplicator
+		eventBatcher  *batcher.Batcher
 		slackNotifier *notifier.SlackNotifier
 		mu            sync.RWMutex // Protects the components above
 	)
@@ -72,6 +74,65 @@ func main() {
 			log.Println("Deduplication disabled")
 		}
 
+		// Initialize or update batcher
+		if c.Batching.Enabled {
+			if eventBatcher != nil {
+				eventBatcher.Stop()
+			}
+
+			// Create batch handler
+			batchHandler := func(batch *batcher.Batch) {
+				// Convert batcher.Batch to formatter.EventBatch
+				formatterBatch := &formatter.EventBatch{
+					Events:    batch.Events,
+					StartTime: batch.StartTime,
+					EndTime:   batch.EndTime,
+				}
+
+				// Format batch message
+				mu.RLock()
+				currentFormatter := fmt
+				currentNotifier := slackNotifier
+				currentConfig := c
+				mu.RUnlock()
+
+				mode := formatter.BatchMode(currentConfig.Batching.Mode)
+				slackMessage := currentFormatter.FormatBatchSlackMessage(
+					formatterBatch,
+					mode,
+					currentConfig.Batching.Smart.MaxEventsPerGroup,
+					currentConfig.Batching.Smart.AlwaysShowDetails,
+				)
+
+				// Send batch notification
+				if err := currentNotifier.SendMessage(slackMessage); err != nil {
+					log.Printf("Failed to send batch notification: %v", err)
+					return
+				}
+
+				log.Printf("Batch notification sent: %d events", len(batch.Events))
+			}
+
+			// Create batcher config
+			batchConfig := batcher.Config{
+				Enabled:       c.Batching.Enabled,
+				WindowSeconds: c.Batching.WindowSeconds,
+				Mode:          batcher.BatchMode(c.Batching.Mode),
+				Smart: batcher.SmartConfig{
+					MaxEventsPerGroup: c.Batching.Smart.MaxEventsPerGroup,
+					MaxTotalEvents:    c.Batching.Smart.MaxTotalEvents,
+					AlwaysShowDetails: c.Batching.Smart.AlwaysShowDetails,
+				},
+			}
+
+			eventBatcher = batcher.NewBatcher(batchConfig, batchHandler)
+			log.Printf("Batching enabled: Window=%ds, Mode=%s", c.Batching.WindowSeconds, c.Batching.Mode)
+		} else if eventBatcher != nil {
+			eventBatcher.Stop()
+			eventBatcher = nil
+			log.Println("Batching disabled")
+		}
+
 		return nil
 	}
 
@@ -82,6 +143,9 @@ func main() {
 	if deduplicator != nil {
 		defer deduplicator.Stop()
 	}
+	if eventBatcher != nil {
+		defer eventBatcher.Stop()
+	}
 
 	// Create event handler
 	eventHandler := func(event *watcher.Event) {
@@ -89,6 +153,7 @@ func main() {
 		mu.RLock()
 		currentFilter := eventFilter
 		currentDedup := deduplicator
+		currentBatcher := eventBatcher
 		currentFormatter := fmt
 		currentNotifier := slackNotifier
 		mu.RUnlock()
@@ -113,6 +178,14 @@ func main() {
 			}
 		}
 
+		// If batching is enabled, add to batcher
+		if currentBatcher != nil {
+			currentBatcher.Add(event)
+			log.Printf("Event added to batch: %s %s/%s (%s)", event.Kind, event.Namespace, event.Name, event.EventType)
+			return
+		}
+
+		// Otherwise, send immediately
 		// Format message as Slack attachment
 		slackMessage := currentFormatter.FormatSlackMessage(event)
 
