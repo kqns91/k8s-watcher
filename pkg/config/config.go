@@ -10,10 +10,11 @@ import (
 
 // Config represents the application configuration
 type Config struct {
-	Namespace string             `yaml:"namespace"`
-	Resources []ResourceConfig   `yaml:"resources"`
-	Filters   []FilterConfig     `yaml:"filters"`
-	Notifier  NotifierConfig     `yaml:"notifier"`
+	Namespace      string             `yaml:"namespace"`
+	Resources      []ResourceConfig   `yaml:"resources"`
+	Filters        []FilterConfig     `yaml:"filters"`
+	Notifier       NotifierConfig     `yaml:"notifier"`
+	Deduplication  DeduplicationConfig `yaml:"deduplication,omitempty"`
 }
 
 // ResourceConfig defines which Kubernetes resources to watch
@@ -37,6 +38,13 @@ type NotifierConfig struct {
 type SlackConfig struct {
 	WebhookURL string `yaml:"webhookUrl"`
 	Template   string `yaml:"template"`
+}
+
+// DeduplicationConfig contains event deduplication settings
+type DeduplicationConfig struct {
+	Enabled      bool   `yaml:"enabled"`
+	TTLSeconds   int    `yaml:"ttlSeconds"`
+	MaxCacheSize int    `yaml:"maxCacheSize"`
 }
 
 // LoadConfig loads configuration from a YAML file
@@ -74,6 +82,16 @@ func (c *Config) Validate() error {
 
 	if c.Notifier.Slack.Template == "" {
 		c.Notifier.Slack.Template = "[{{ .Kind }}] {{ .Namespace }}/{{ .Name }} was {{ .EventType }}"
+	}
+
+	// Set deduplication defaults if not specified
+	if c.Deduplication.Enabled {
+		if c.Deduplication.TTLSeconds <= 0 {
+			c.Deduplication.TTLSeconds = 300 // Default: 5 minutes
+		}
+		if c.Deduplication.MaxCacheSize <= 0 {
+			c.Deduplication.MaxCacheSize = 1000 // Default: 1000 entries
+		}
 	}
 
 	return nil

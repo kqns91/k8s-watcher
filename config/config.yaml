@@ -32,3 +32,16 @@ notifier:
     template: |
       :kubernetes: *[{{ .Kind }}]* `{{ .Namespace }}/{{ .Name }}` was *{{ .EventType }}*
       Time: {{ .Timestamp }}
+
+# Event deduplication configuration (optional)
+deduplication:
+  # Enable/disable deduplication (default: false)
+  enabled: true
+
+  # Time-to-live for cache entries in seconds (default: 300 = 5 minutes)
+  # Events with same signature within this period will be deduplicated
+  ttlSeconds: 300
+
+  # Maximum cache size (default: 1000)
+  # Oldest entries will be evicted when limit is reached
+  maxCacheSize: 1000
