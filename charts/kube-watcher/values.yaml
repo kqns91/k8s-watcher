@@ -12,7 +12,7 @@ namespace: default
 image:
   repository: ghcr.io/kqns91/kube-watcher
   pullPolicy: IfNotPresent
-  tag: "0.3.0"
+  tag: "0.4.0"
 
 # イメージプルシークレット（プライベートレジストリ使用時）
 imagePullSecrets: []
@@ -114,6 +114,34 @@ config:
     # 最大キャッシュサイズ（デフォルト: 1000）
     # 上限に達すると最も古いエントリが削除されます
     maxCacheSize: 1000
+
+  # イベントバッチ処理設定（オプション）
+  batching:
+    # 有効化/無効化（デフォルト: false）
+    enabled: false
+
+    # バッチウィンドウの秒数（デフォルト: 300 = 5分）
+    # 推奨範囲: 30-600秒
+    windowSeconds: 300
+
+    # バッチモード: detailed, summary, smart（デフォルト: smart）
+    # detailed: すべてのイベントの詳細を表示
+    # summary: イベント数のみを表示
+    # smart: イベント数に応じて自動調整
+    mode: smart
+
+    # スマートモード設定
+    smart:
+      # グループごとの詳細表示する最大イベント数（デフォルト: 5）
+      maxEventsPerGroup: 5
+
+      # 全体の詳細表示する最大イベント数（デフォルト: 20）
+      # これを超えるとサマリーモードに切り替わります
+      maxTotalEvents: 20
+
+      # 常に詳細を表示するイベントタイプ（デフォルト: DELETED）
+      alwaysShowDetails:
+        - DELETED
 
 # RBAC設定
 rbac:

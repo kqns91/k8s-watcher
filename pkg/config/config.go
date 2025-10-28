@@ -10,11 +10,12 @@ import (
 
 // Config represents the application configuration
 type Config struct {
-	Namespace      string             `yaml:"namespace"`
-	Resources      []ResourceConfig   `yaml:"resources"`
-	Filters        []FilterConfig     `yaml:"filters"`
-	Notifier       NotifierConfig     `yaml:"notifier"`
+	Namespace      string              `yaml:"namespace"`
+	Resources      []ResourceConfig    `yaml:"resources"`
+	Filters        []FilterConfig      `yaml:"filters"`
+	Notifier       NotifierConfig      `yaml:"notifier"`
 	Deduplication  DeduplicationConfig `yaml:"deduplication,omitempty"`
+	Batching       BatchingConfig      `yaml:"batching,omitempty"`
 }
 
 // ResourceConfig defines which Kubernetes resources to watch
@@ -45,6 +46,21 @@ type DeduplicationConfig struct {
 	Enabled      bool   `yaml:"enabled"`
 	TTLSeconds   int    `yaml:"ttlSeconds"`
 	MaxCacheSize int    `yaml:"maxCacheSize"`
+}
+
+// BatchingConfig contains event batching settings
+type BatchingConfig struct {
+	Enabled       bool                `yaml:"enabled"`
+	WindowSeconds int                 `yaml:"windowSeconds"`
+	Mode          string              `yaml:"mode"` // "detailed" | "summary" | "smart"
+	Smart         SmartBatchingConfig `yaml:"smart"`
+}
+
+// SmartBatchingConfig contains smart batching settings
+type SmartBatchingConfig struct {
+	MaxEventsPerGroup int      `yaml:"maxEventsPerGroup"`
+	MaxTotalEvents    int      `yaml:"maxTotalEvents"`
+	AlwaysShowDetails []string `yaml:"alwaysShowDetails"`
 }
 
 // LoadConfig loads configuration from a YAML file
@@ -91,6 +107,40 @@ func (c *Config) Validate() error {
 		}
 		if c.Deduplication.MaxCacheSize <= 0 {
 			c.Deduplication.MaxCacheSize = 1000 // Default: 1000 entries
+		}
+	}
+
+	// Validate and set batching defaults
+	if c.Batching.Enabled {
+		if c.Batching.WindowSeconds < 30 {
+			return fmt.Errorf("batching.windowSeconds must be at least 30 seconds (got %d)", c.Batching.WindowSeconds)
+		}
+		if c.Batching.WindowSeconds > 600 {
+			fmt.Printf("Warning: batching.windowSeconds is %d (>10min). Consider using a shorter window for better responsiveness.\n", c.Batching.WindowSeconds)
+		}
+
+		// Set default mode if not specified
+		if c.Batching.Mode == "" {
+			c.Batching.Mode = "smart"
+		}
+
+		// Validate mode
+		validModes := map[string]bool{"detailed": true, "summary": true, "smart": true}
+		if !validModes[c.Batching.Mode] {
+			return fmt.Errorf("batching.mode must be one of: detailed, summary, smart (got %s)", c.Batching.Mode)
+		}
+
+		// Set smart batching defaults
+		if c.Batching.Mode == "smart" {
+			if c.Batching.Smart.MaxEventsPerGroup <= 0 {
+				c.Batching.Smart.MaxEventsPerGroup = 5 // Default: show details for up to 5 events per group
+			}
+			if c.Batching.Smart.MaxTotalEvents <= 0 {
+				c.Batching.Smart.MaxTotalEvents = 20 // Default: force summary if >20 total events
+			}
+			if len(c.Batching.Smart.AlwaysShowDetails) == 0 {
+				c.Batching.Smart.AlwaysShowDetails = []string{"DELETED"} // Default: always show deleted events
+			}
 		}
 	}
 
