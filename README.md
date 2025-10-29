@@ -308,7 +308,15 @@ filters:
   - resource: Pod
     eventTypes: ["DELETED"]
     labels:
+      environment: "production"  # 単一ラベル
+
+  # 複数のラベル条件（すべて一致する必要がある = AND条件）
+  - resource: Pod
+    eventTypes: ["DELETED"]
+    labels:
       environment: "production"
+      app: "web"
+      tier: "frontend"
 
   # Deploymentのすべての変更を通知
   - resource: Deployment
@@ -416,9 +424,20 @@ batching:
 - resource: Pod
   expression: 'event.eventType in ["ADDED", "DELETED"]'
 
-# ラベルと条件の組み合わせ
+# ラベルと条件の組み合わせ（AND条件）
 - resource: Pod
   expression: 'event.namespace == "prod" && event.labels.app == "web" && event.eventType == "DELETED"'
+
+# 複数ラベルのAND条件
+- resource: Pod
+  expression: >
+    event.labels.environment == "production" &&
+    event.labels.app == "web" &&
+    event.labels.tier == "frontend"
+
+# ラベルのOR条件
+- resource: Pod
+  expression: 'event.labels.app == "web" || event.labels.app == "api" || event.labels.app == "worker"'
 
 # レプリカ数の条件
 - resource: Deployment
