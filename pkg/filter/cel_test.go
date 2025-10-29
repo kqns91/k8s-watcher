@@ -298,4 +298,80 @@ func TestCELFilter_ComplexScenarios(t *testing.T) {
 			t.Error("Multiline expression should filter out ReplicaSetUpdated")
 		}
 	})
+
+	t.Run("OR groups with AND (parentheses)", func(t *testing.T) {
+		// (app=web OR app=api) AND (namespace=prod OR namespace=staging)
+		expression := `(event.labels.app == "web" || event.labels.app == "api") && (event.namespace == "prod" || event.namespace == "staging")`
+		filter, err := NewCELFilter(expression)
+		if err != nil {
+			t.Fatalf("Failed to create filter with grouped OR conditions: %v", err)
+		}
+
+		testCases := []struct {
+			name     string
+			event    *watcher.Event
+			expected bool
+		}{
+			{
+				name: "web + prod: should match",
+				event: &watcher.Event{
+					Kind:      "Pod",
+					Namespace: "prod",
+					Name:      "web-1",
+					EventType: "ADDED",
+					Labels:    map[string]string{"app": "web"},
+					Timestamp: time.Now(),
+				},
+				expected: true,
+			},
+			{
+				name: "api + staging: should match",
+				event: &watcher.Event{
+					Kind:      "Pod",
+					Namespace: "staging",
+					Name:      "api-1",
+					EventType: "ADDED",
+					Labels:    map[string]string{"app": "api"},
+					Timestamp: time.Now(),
+				},
+				expected: true,
+			},
+			{
+				name: "web + dev: should NOT match",
+				event: &watcher.Event{
+					Kind:      "Pod",
+					Namespace: "dev",
+					Name:      "web-1",
+					EventType: "ADDED",
+					Labels:    map[string]string{"app": "web"},
+					Timestamp: time.Now(),
+				},
+				expected: false,
+			},
+			{
+				name: "worker + prod: should NOT match",
+				event: &watcher.Event{
+					Kind:      "Pod",
+					Namespace: "prod",
+					Name:      "worker-1",
+					EventType: "ADDED",
+					Labels:    map[string]string{"app": "worker"},
+					Timestamp: time.Now(),
+				},
+				expected: false,
+			},
+		}
+
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.T) {
+				result, err := filter.Evaluate(tc.event)
+				if err != nil {
+					t.Errorf("Evaluation error: %v", err)
+				}
+				if result != tc.expected {
+					t.Errorf("Expected %v, got %v", tc.expected, result)
+				}
+			})
+		}
+	})
 }

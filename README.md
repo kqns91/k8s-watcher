@@ -447,6 +447,19 @@ batching:
 - resource: Pod
   expression: 'event.eventType == "DELETED" || (event.eventType == "UPDATED" && event.status != "Running")'
 
+# 括弧を使ったOR条件のグループ化（ANDで結合）
+# (app=web OR app=api) AND (namespace=prod OR namespace=staging)
+- resource: Pod
+  expression: >
+    (event.labels.app == "web" || event.labels.app == "api") &&
+    (event.namespace == "prod" || event.namespace == "staging")
+
+# IN演算子を使った簡潔な書き方（上記と同じ意味）
+- resource: Pod
+  expression: >
+    event.labels.app in ["web", "api"] &&
+    event.namespace in ["prod", "staging"]
+
 # YAMLの複数行記法を使った読みやすい書き方（推奨）
 # > (folded style) を使うと複数行が1行にスペース区切りで結合される
 - resource: Deployment
