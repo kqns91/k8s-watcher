@@ -269,4 +269,33 @@ func TestCELFilter_ComplexScenarios(t *testing.T) {
 			t.Error("Other UPDATED events should pass")
 		}
 	})
+
+	t.Run("Multiline expression (YAML folded style)", func(t *testing.T) {
+		// YAMLの > (folded style) で複数行を1行にする場合のテスト
+		// 実際のYAML:
+		// expression: >
+		//   event.eventType == "UPDATED" &&
+		//   event.reason != "ReplicaSetUpdated" &&
+		//   event.reason != "NewReplicaSetAvailable"
+		// は以下のように1行のスペース区切り文字列になる
+		expression := `event.eventType == "UPDATED" &&   event.reason != "ReplicaSetUpdated" &&   event.reason != "NewReplicaSetAvailable"`
+		filter, err := NewCELFilter(expression)
+		if err != nil {
+			t.Fatalf("Failed to create filter with multiline expression: %v", err)
+		}
+
+		// ReplicaSetUpdatedは除外される
+		event := &watcher.Event{
+			Kind:      "Deployment",
+			Namespace: "default",
+			Name:      "nginx",
+			EventType: "UPDATED",
+			Reason:    "ReplicaSetUpdated",
+			Timestamp: time.Now(),
+		}
+		result, _ := filter.Evaluate(event)
+		if result {
+			t.Error("Multiline expression should filter out ReplicaSetUpdated")
+		}
+	})
 }

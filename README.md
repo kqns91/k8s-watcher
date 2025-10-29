@@ -427,9 +427,19 @@ batching:
 # 複雑なOR条件
 - resource: Pod
   expression: 'event.eventType == "DELETED" || (event.eventType == "UPDATED" && event.status != "Running")'
+
+# YAMLの複数行記法を使った読みやすい書き方（推奨）
+# > (folded style) を使うと複数行が1行にスペース区切りで結合される
+- resource: Deployment
+  expression: >
+    event.eventType == "UPDATED" &&
+    event.reason != "ReplicaSetUpdated" &&
+    event.reason != "NewReplicaSetAvailable"
 ```
 
-**注意**: `expression` が設定されている場合、`eventTypes` と `labels` フィールドは無視され、CEL式の評価結果のみが使用されます。
+**注意**:
+- `expression` が設定されている場合、`eventTypes` と `labels` フィールドは無視され、CEL式の評価結果のみが使用されます。
+- YAMLの `>` (folded style) を使うと、複数行をスペースで区切った1行として扱われるため、長いCEL式を読みやすく記述できます。
 
 ## 開発
 
